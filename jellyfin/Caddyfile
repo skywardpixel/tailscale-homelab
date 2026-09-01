@@ -1,0 +1,27 @@
+{
+	tailscale {
+		auth_key {$TS_AUTHKEY}
+		state_dir /var/lib/tailscale-caddy
+	}
+}
+
+# Free tailnet hostname. Explicit `get_certificate tailscale` — the plugin's
+# auto-detection for full ts.net names sends issuance through public Let's
+# Encrypt, which can't work for a tailnet-only listener.
+{$TS_HOSTNAME}.{$TAILNET_NAME}.ts.net {
+	bind tailscale/{$TS_HOSTNAME}
+	tls {
+		get_certificate tailscale
+	}
+	reverse_proxy jellyfin:8096
+}
+
+# Custom private domain: reachable only from the tailnet. Needs a DNS-only
+# (grey-cloud) Cloudflare A record pointing at this node's Tailscale IPv4.
+{$CUSTOM_DOMAIN} {
+	bind tailscale/{$TS_HOSTNAME}
+	tls {
+		dns cloudflare {$CF_API_TOKEN}
+	}
+	reverse_proxy jellyfin:8096
+}
