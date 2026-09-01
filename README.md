@@ -105,13 +105,17 @@ docker network create --subnet 172.28.0.0/16 downloads
 ```
 
 Both `qbittorrent/compose.yaml` and `autobangumi/compose.yaml` attach to it;
-AutoBangumi's downloader host is `qbittorrent:8080` (`ssl: false`). qBittorrent
-runs `PUID:PGID` from its `.env` plus `MEDIA_GID` as a supplementary group so
-it can manage files under `DOWNLOADS_DIR` (mounted read-write at the same
-path inside and out). Its WebUI password is recorded in `qbittorrent/.env`
-(`WEBUI_PASSWORD`) and stored hashed in the config volume; the same value is
-set in AutoBangumi's own config (Settings → Downloader in its web UI, or
-`config.json` in the `AutoBangumi_config` volume).
+AutoBangumi's downloader host is `qbittorrent:8080` (`ssl: false`).
 
-The BitTorrent peer port (`BT_PORT`, default 6881) is the one port published
-to the host — peer data transfer, not a management UI.
+**Auth:** `qbittorrent/init.d/10-webui-whitelist.sh` (run by the LinuxServer
+image before qBittorrent starts) adds that subnet to qBittorrent's
+*WebUI → auth subnet whitelist*, so clients on the `downloads` network reach
+the API without credentials. Everything else — including the Caddy front, on
+a different subnet — still has to log in. Set a WebUI password on first login
+(qBittorrent shows a temporary one in `docker compose logs qbittorrent`).
+
+qBittorrent runs `PUID:PGID` from its `.env` plus `MEDIA_GID` as a
+supplementary group so it can manage files under `DOWNLOADS_DIR` (mounted
+read-write at the same path inside and out). The BitTorrent peer port
+(`BT_PORT`, default 6881) is the one port published to the host — peer data
+transfer, not a management UI.

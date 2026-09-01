@@ -17,6 +17,8 @@ services:
       # Same path inside and out so torrent save-paths are portable and match
       # what AutoBangumi passes to the API.
       - ${DOWNLOADS_DIR}:${DOWNLOADS_DIR}
+      # Seeds the WebUI auth-subnet whitelist before qBittorrent starts.
+      - ./init.d/10-webui-whitelist.sh:/custom-cont-init.d/10-webui-whitelist.sh:ro
     ports:
       # BitTorrent peer port — the one port worth publishing (peer data
       # transfer, not a management UI). The WebUI stays tailnet-only via caddy.
