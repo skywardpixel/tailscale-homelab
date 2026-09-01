@@ -1,0 +1,8 @@
+# Per-project secrets / host-specific config. Templates are committed.
+.env
+!*/.env.example
+
+# OS / editor cruft
+.DS_Store
+*.swp
+*~

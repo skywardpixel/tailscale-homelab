@@ -1,0 +1,32 @@
+{
+	tailscale {
+		auth_key {$TS_AUTHKEY}
+		state_dir /var/lib/tailscale-caddy
+	}
+}
+
+# Free hostname on your tailnet, reachable at
+# https://{$TS_HOSTNAME}.{$TAILNET_NAME}.ts.net from any device on the
+# tailnet. Explicit `get_certificate tailscale` because relying on the
+# plugin's automatic detection for full ts.net hostnames sent this through
+# public Let's Encrypt instead (which then fails: nothing public can reach
+# a tailnet-only listener to complete HTTP-01/TLS-ALPN-01).
+{$TS_HOSTNAME}.{$TAILNET_NAME}.ts.net {
+	bind tailscale/{$TS_HOSTNAME}
+	tls {
+		get_certificate tailscale
+	}
+	reverse_proxy autobangumi:7892
+}
+
+# Custom private domain. Only reachable from inside the tailnet (this Caddy
+# has no public listener), so the DNS-only/grey-cloud Cloudflare A record for
+# this name must point at this node's Tailscale IPv4 address. DNS-01 doesn't
+# need that record to exist to issue the cert — only to actually route traffic.
+{$CUSTOM_DOMAIN} {
+	bind tailscale/{$TS_HOSTNAME}
+	tls {
+		dns cloudflare {$CF_API_TOKEN}
+	}
+	reverse_proxy autobangumi:7892
+}

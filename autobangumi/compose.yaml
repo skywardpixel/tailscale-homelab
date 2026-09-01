@@ -1,0 +1,52 @@
+name: autobangumi
+
+services:
+  autobangumi:
+    image: ghcr.io/estrellaxd/auto_bangumi:latest
+    container_name: AutoBangumi
+    restart: unless-stopped
+    environment:
+      TZ: America/Los_Angeles
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "022"
+    volumes:
+      - config:/app/config
+      - data:/app/data
+    # No published port: only reachable through the caddy service below,
+    # over the tailnet.
+
+  caddy:
+    build:
+      context: ../_caddy-tailscale
+    image: services/caddy-tailscale:local
+    container_name: AutoBangumi_caddy
+    restart: unless-stopped
+    depends_on:
+      - autobangumi
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - tailscale_state:/var/lib/tailscale-caddy
+    # No published ports either: Caddy binds to the tsnet (Tailscale)
+    # interface, not the host network — there's nothing to publish.
+
+volumes:
+  # Existing volumes from the pre-compose container, reused as-is.
+  config:
+    external: true
+    name: AutoBangumi_config
+  data:
+    external: true
+    name: AutoBangumi_data
+  # New volumes for the Caddy/Tailscale front.
+  caddy_data:
+  caddy_config:
+  tailscale_state:
