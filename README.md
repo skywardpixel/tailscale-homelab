@@ -64,54 +64,32 @@ docker compose restart caddy                          # reload Caddyfile changes
 docker compose down                                   # stop (volumes kept)
 ```
 
-## Jellyfin migration (from a native install)
+## Jellyfin notes
 
-`jellyfin/migrate.sh` moves a native (Debian package) Jellyfin into this
-project. It keeps the native in-container paths (`/var/lib/jellyfin`,
-`/etc/jellyfin`, `/var/cache/jellyfin`) and runs as the native `jellyfin`
-uid:gid so migrated files and absolute paths in the database stay valid.
-Media is bind-mounted read-only at the same path inside and out.
+`MEDIA_DIR` (host path) is mounted read-only at `/media`; point libraries at
+`/media/<subfolder>` in the first-run wizard. `config` and `cache` are
+Docker-managed volumes.
 
-Config lives in `jellyfin/.env`:
+GPU transcoding needs the **NVIDIA container toolkit** on the host:
 
-| Var                              | What                                                        |
-|----------------------------------|------------------------------------------------------------|
-| `MEDIA_DIR`                      | host media path, mounted read-only at the same path        |
-| `JELLYFIN_UID` / `JELLYFIN_GID`  | user to run as — `getent passwd jellyfin` on the old host   |
-| `MEDIA_GID`                      | group that owns the media files (`stat -c %g <file>`)       |
-| `JELLYFIN_VERSION`               | image tag                                                   |
+```sh
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+  | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+  | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt update && sudo apt install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
 
-Steps (all need `sudo`):
+For an Intel/AMD iGPU instead: drop the `deploy:` block from
+`jellyfin/compose.yaml`, add `devices: [/dev/dri:/dev/dri]`, and add a
+`group_add` for the host's `render` group.
 
-1. **NVIDIA container toolkit** (only if you want GPU transcoding):
+After first-run setup, in the Jellyfin web UI:
 
-   ```sh
-   curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-     | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-   curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-     | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-     | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-   sudo apt update && sudo apt install -y nvidia-container-toolkit
-   sudo nvidia-ctk runtime configure --runtime=docker
-   sudo systemctl restart docker
-   ```
-
-   For an Intel/AMD iGPU instead, drop the `deploy:` block from
-   `jellyfin/compose.yaml`, pass through `/dev/dri`, and add the host's
-   `render` group to `group_add`.
-
-2. Fill in `jellyfin/.env`, then:
-
-   ```sh
-   cd jellyfin
-   sudo ./migrate.sh          # stops + disables jellyfin.service, copies data
-   docker compose up -d
-   ```
-
-3. In the Jellyfin web UI:
-   - **Dashboard → Playback**: set/confirm hardware acceleration (NVENC),
-     then force a transcode and check `nvidia-smi` shows an `ffmpeg` process.
-   - **Dashboard → Networking**: add the `caddy` container to *Known proxies*
-     (`docker compose exec caddy hostname -i`) so client IPs are logged.
-
-The native install's data is left in place — remove it once you're satisfied.
+- **Dashboard → Playback**: enable NVENC hardware acceleration, then force a
+  transcode and check `nvidia-smi` on the host shows an `ffmpeg` process.
+- **Dashboard → Networking**: add the `caddy` container to *Known proxies*
+  (`docker compose exec caddy hostname -i`) so client IPs are logged.

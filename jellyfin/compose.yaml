@@ -5,29 +5,16 @@ services:
     image: jellyfin/jellyfin:${JELLYFIN_VERSION:-10.11.11}
     container_name: Jellyfin
     restart: unless-stopped
-    # Run as the host user that owns the media / migrated data (see .env).
-    user: "${JELLYFIN_UID}:${JELLYFIN_GID}"
-    group_add:
-      - "${MEDIA_GID}"
     environment:
-      # So .NET Data Protection finds its key ring under the data dir instead
-      # of falling back to an ephemeral one (the container user has no
-      # /etc/passwd home).
-      HOME: /var/lib/jellyfin
-      # Native-style paths kept verbatim inside the container so any absolute
-      # path baked into the migrated database / XML stays valid.
-      JELLYFIN_DATA_DIR: /var/lib/jellyfin
-      JELLYFIN_CONFIG_DIR: /etc/jellyfin
-      JELLYFIN_CACHE_DIR: /var/cache/jellyfin
-      JELLYFIN_LOG_DIR: /var/lib/jellyfin/log
+      # Persist the .NET Data Protection key ring inside the config volume
+      # (the image's default $HOME isn't on a volume).
+      HOME: /config
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: video,compute,utility
     volumes:
-      - data:/var/lib/jellyfin
-      - config:/etc/jellyfin
-      - cache:/var/cache/jellyfin
-      # Same path inside and out — keeps DB library paths valid.
-      - ${MEDIA_DIR}:${MEDIA_DIR}:ro
+      - config:/config
+      - cache:/cache
+      - ${MEDIA_DIR}:/media:ro
     deploy:
       resources:
         reservations:
@@ -59,18 +46,8 @@ services:
       - tailscale_state:/var/lib/tailscale-caddy
 
 volumes:
-  # Populated from the native install by ./migrate.sh; external so the
-  # migration owns their lifecycle.
-  data:
-    external: true
-    name: jellyfin_data
   config:
-    external: true
-    name: jellyfin_config
   cache:
-    external: true
-    name: jellyfin_cache
-  # Fresh volumes for the Caddy/Tailscale front.
   caddy_data:
   caddy_config:
   tailscale_state:
