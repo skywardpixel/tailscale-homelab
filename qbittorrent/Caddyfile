@@ -1,0 +1,32 @@
+{
+	tailscale {
+		auth_key {$TS_AUTHKEY}
+		state_dir /var/lib/tailscale-caddy
+	}
+}
+
+# qBittorrent rejects requests whose Host header isn't one it expects, so
+# rewrite Host to the upstream's own host:port. This is the standard way to
+# put qBittorrent behind a reverse proxy without disabling its host-header
+# and CSRF checks.
+(qbittorrent) {
+	reverse_proxy qbittorrent:8080 {
+		header_up Host {upstream_hostport}
+	}
+}
+
+{$TS_HOSTNAME}.{$TAILNET_NAME}.ts.net {
+	bind tailscale/{$TS_HOSTNAME}
+	tls {
+		get_certificate tailscale
+	}
+	import qbittorrent
+}
+
+{$CUSTOM_DOMAIN} {
+	bind tailscale/{$TS_HOSTNAME}
+	tls {
+		dns cloudflare {$CF_API_TOKEN}
+	}
+	import qbittorrent
+}

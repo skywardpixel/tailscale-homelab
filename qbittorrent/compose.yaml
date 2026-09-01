@@ -1,0 +1,60 @@
+name: qbittorrent
+
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:${QBITTORRENT_VERSION:-latest}
+    container_name: qBittorrent
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Etc/UTC}
+      WEBUI_PORT: "8080"
+    group_add:
+      - "${MEDIA_GID}"
+    volumes:
+      - config:/config
+      # Same path inside and out so torrent save-paths are portable and match
+      # what AutoBangumi passes to the API.
+      - ${DOWNLOADS_DIR}:${DOWNLOADS_DIR}
+    ports:
+      # BitTorrent peer port — the one port worth publishing (peer data
+      # transfer, not a management UI). The WebUI stays tailnet-only via caddy.
+      - "${BT_PORT:-6881}:6881/tcp"
+      - "${BT_PORT:-6881}:6881/udp"
+    networks:
+      - default
+      - downloads
+
+  caddy:
+    build:
+      context: ../_caddy-tailscale
+    image: services/caddy-tailscale:local
+    container_name: qBittorrent_caddy
+    restart: unless-stopped
+    depends_on:
+      - qbittorrent
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - tailscale_state:/var/lib/tailscale-caddy
+
+networks:
+  # Shared with the autobangumi project: AutoBangumi reaches qBittorrent at
+  # http://qbittorrent:8080 over this. Create it once with:
+  #   docker network create --subnet 172.28.0.0/16 downloads
+  downloads:
+    external: true
+
+volumes:
+  config:
+  caddy_data:
+  caddy_config:
+  tailscale_state:
