@@ -19,6 +19,15 @@ services:
       - downloads
     # No published port: only reachable through the caddy service below,
     # over the tailnet.
+    # Override the image's healthcheck: it uses http://localhost:7892 which
+    # resolves to ::1 first, but the app only listens on IPv4, and busybox
+    # wget doesn't fall back — so the stock check always reports unhealthy.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7892/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   caddy:
     build:
