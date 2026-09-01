@@ -13,6 +13,10 @@ services:
     volumes:
       - config:/app/config
       - data:/app/data
+    networks:
+      - default
+      # Reaches the qbittorrent project's WebUI at http://qbittorrent:8080.
+      - downloads
     # No published port: only reachable through the caddy service below,
     # over the tailnet.
 
@@ -37,6 +41,12 @@ services:
       - tailscale_state:/var/lib/tailscale-caddy
     # No published ports either: Caddy binds to the tsnet (Tailscale)
     # interface, not the host network — there's nothing to publish.
+
+networks:
+  # Shared with the qbittorrent project. Create once with:
+  #   docker network create --subnet 172.28.0.0/16 downloads
+  downloads:
+    external: true
 
 volumes:
   # Existing volumes from the pre-compose container, reused as-is.

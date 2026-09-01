@@ -2,13 +2,14 @@
 
 Docker Compose projects for self-hosted services, each fronted by its own
 [Caddy](https://caddyserver.com/) + [Tailscale](https://tailscale.com/) node
-so the service is reachable only over the tailnet, on HTTPS, with no host
-ports published.
+so the web UI is reachable only over the tailnet, on HTTPS, with nothing
+bound to a host port (bar the odd non-UI port like BitTorrent's).
 
-| Project       | Image                                    | Reachable at                              |
-|---------------|------------------------------------------|-------------------------------------------|
-| `autobangumi` | `ghcr.io/estrellaxd/auto_bangumi`        | `<host>.<tailnet>.ts.net` + custom domain |
-| `jellyfin`    | `jellyfin/jellyfin`                      | `<host>.<tailnet>.ts.net` + custom domain |
+| Project        | Image                              | Reachable at                              |
+|----------------|------------------------------------|-------------------------------------------|
+| `autobangumi`  | `ghcr.io/estrellaxd/auto_bangumi`  | `<host>.<tailnet>.ts.net` + custom domain |
+| `jellyfin`     | `jellyfin/jellyfin`                | `<host>.<tailnet>.ts.net` + custom domain |
+| `qbittorrent`  | `lscr.io/linuxserver/qbittorrent`  | `<host>.<tailnet>.ts.net` + custom domain |
 
 Each project is a directory with a `compose.yaml`, a `Caddyfile`, and an
 `.env.example`. Copy `.env.example` to `.env` (gitignored) and fill it in —
@@ -93,3 +94,24 @@ After first-run setup, in the Jellyfin web UI:
   transcode and check `nvidia-smi` on the host shows an `ffmpeg` process.
 - **Dashboard → Networking**: add the `caddy` container to *Known proxies*
   (`docker compose exec caddy hostname -i`) so client IPs are logged.
+
+## qBittorrent + AutoBangumi
+
+AutoBangumi drives qBittorrent's API. They talk over a shared external Docker
+network so the call stays internal (no round-trip through the tailnet):
+
+```sh
+docker network create --subnet 172.28.0.0/16 downloads
+```
+
+Both `qbittorrent/compose.yaml` and `autobangumi/compose.yaml` attach to it;
+AutoBangumi's downloader host is `qbittorrent:8080` (`ssl: false`). qBittorrent
+runs `PUID:PGID` from its `.env` plus `MEDIA_GID` as a supplementary group so
+it can manage files under `DOWNLOADS_DIR` (mounted read-write at the same
+path inside and out). Its WebUI password is recorded in `qbittorrent/.env`
+(`WEBUI_PASSWORD`) and stored hashed in the config volume; the same value is
+set in AutoBangumi's own config (Settings → Downloader in its web UI, or
+`config.json` in the `AutoBangumi_config` volume).
+
+The BitTorrent peer port (`BT_PORT`, default 6881) is the one port published
+to the host — peer data transfer, not a management UI.
