@@ -169,9 +169,11 @@ the API without credentials. Everything else — including the Caddy front, on
 a different subnet — still has to log in. Set a WebUI password on first login
 (qBittorrent shows a temporary one in `docker compose logs qbittorrent`).
 
-qBittorrent runs `PUID:PGID` from its `.env` plus `MEDIA_GID` as a
-supplementary group so it can manage files under `DOWNLOADS_DIR` (mounted
-read-write at the same path inside and out). The BitTorrent peer port
+qBittorrent runs as `PUID:PGID` from its `.env`. `PGID` must be the group
+that owns `DOWNLOADS_DIR` (mounted read-write at the same path inside and
+out) — a supplementary `group_add` is silently dropped by this image's
+`s6-setuidgid`, so the media group has to be the primary GID. The
+BitTorrent peer port
 (`BT_PORT`, default 6881) is the one port published to the host — peer data
 transfer, not a management UI.
 
