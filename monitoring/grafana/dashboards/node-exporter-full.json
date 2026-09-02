@@ -15540,5 +15540,6 @@
  "uid": "node-exporter-full",
  "version": 101,
  "weekStart": "",
- "gnetId": 1860
+ "gnetId": 1860,
+ "description": "Vendored Grafana dashboard 1860. Provisioned into the Homelab folder."
 }

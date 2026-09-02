@@ -4,9 +4,9 @@ providers:
   - name: default
     orgId: 1
     type: file
+    folder: Homelab
     disableDeletion: false
     updateIntervalSeconds: 30
     allowUiUpdates: true
     options:
       path: /var/lib/grafana/dashboards
-      foldersFromFilesStructure: true
