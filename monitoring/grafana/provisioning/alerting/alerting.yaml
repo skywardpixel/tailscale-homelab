@@ -166,3 +166,261 @@ groups:
               expression: A
               conditions:
                 - evaluator: { type: gt, params: [3] }
+
+      - uid: container_oom_kill
+        title: Container OOM-killed
+        condition: C
+        for: 0m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: critical
+        annotations:
+          summary: '{{ $labels.name }} was OOM-killed {{ printf "%.0f" $values.A.Value }}x in 10m'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'increase(container_oom_events_total{name!=""}[10m])'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: systemd_unit_failed
+        title: systemd unit failed
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.name }} is in failed state'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'max by (name) (node_systemd_unit_state{state="failed"} == 1)'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+  - orgId: 1
+    name: host-extra
+    folder: Homelab
+    interval: 1m
+    rules:
+      - uid: host_oom_kill
+        title: Host OOM kill
+        condition: C
+        for: 0m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: critical
+        annotations:
+          summary: 'kernel OOM-killed {{ printf "%.0f" $values.A.Value }} process(es) in 10m'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'increase(node_vmstat_oom_kill[10m])'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: cpu_overtemp
+        title: CPU over temperature
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: 'CPU package at {{ printf "%.0f" $values.A.Value }}°C'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'max(node_hwmon_temp_celsius{chip=~".*coretemp.*"})'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [90] }
+
+  - orgId: 1
+    name: disks
+    folder: Homelab
+    interval: 2m
+    rules:
+      - uid: disk_smart_failed
+        title: Disk SMART health failed
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: critical
+        annotations:
+          summary: '{{ $labels.device }} reports SMART overall-health FAILED'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'smartctl_device_smart_status'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: disk_bad_sectors
+        title: Disk bad sectors
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.device }}: {{ $labels.attribute_name }} = {{ printf "%.0f" $values.A.Value }}'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'smartctl_device_attribute{attribute_name=~"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable",attribute_value_type="raw"}'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: disk_overtemp
+        title: Disk over temperature
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.device }} at {{ printf "%.0f" $values.A.Value }}°C'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'smartctl_device_temperature{temperature_type="current"}'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [60] }
+
+      - uid: ssd_wearout
+        title: SSD wear leveling low
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.device }} wear-leveling normalized value at {{ printf "%.0f" $values.A.Value }} (lower = more worn)'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'smartctl_device_attribute{attribute_name="Wear_Leveling_Count",attribute_value_type="value"}'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [10] }
+
+  - orgId: 1
+    name: security
+    folder: Homelab
+    interval: 1m
+    rules:
+      - uid: ssh_bruteforce
+        title: SSH brute-force attempts
+        condition: C
+        for: 0m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ printf "%.0f" $values.A.Value }} failed SSH password attempts in 10m'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              refId: A
+              expr: 'sum(count_over_time({job="systemd-journal"} |~ `(?i)failed password` [10m]))'
+              queryType: instant
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [15] }

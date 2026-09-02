@@ -105,6 +105,15 @@ services:
               count: all
               capabilities: [gpu]
 
+  smartctl-exporter:
+    image: prometheuscommunity/smartctl-exporter:v0.14.0
+    container_name: smartctl_exporter
+    restart: unless-stopped
+    privileged: true
+    user: root
+    volumes:
+      - /dev:/dev:ro
+
   caddy:
     build:
       context: ../_caddy-tailscale
