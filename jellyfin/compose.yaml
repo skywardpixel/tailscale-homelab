@@ -2,7 +2,7 @@ name: jellyfin
 
 services:
   jellyfin:
-    image: jellyfin/jellyfin:${JELLYFIN_VERSION:-10.11.11}
+    image: jellyfin/jellyfin:10.11.11
     container_name: Jellyfin
     restart: unless-stopped
     environment:
