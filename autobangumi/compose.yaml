@@ -51,6 +51,20 @@ services:
     # No published ports either: Caddy binds to the tsnet (Tailscale)
     # interface, not the host network — there's nothing to publish.
 
+  # One-shot: keeps the DNS-only CNAME ${CUSTOM_DOMAIN} -> the node's MagicDNS
+  # name in Cloudflare. Runs to completion and exits on every `up`.
+  dns-sync:
+    build:
+      context: ../_dns-sync
+    image: services/dns-sync:local
+    container_name: AutoBangumi_dns_sync
+    restart: "no"
+    environment:
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+
 networks:
   # Shared with the qbittorrent project. Create once with:
   #   docker network create --subnet 172.28.0.0/16 downloads
