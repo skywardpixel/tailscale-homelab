@@ -1,0 +1,147 @@
+name: monitoring
+
+# Observability for the whole host + all Docker projects. Same front as every
+# other project here: an app (Grafana) with no published port, a caddy tsnet
+# sidecar serving it over the tailnet, and a dns-sync one-shot for the CNAME.
+#
+# Collection: Alloy runs the host (unix) exporter and ships it, cAdvisor
+# (per-container) and nvidia_gpu_exporter metrics to Prometheus, and every
+# container log + the systemd journal to Loki. Grafana reads both.
+
+services:
+  grafana:
+    image: grafana/grafana:13.2.1
+    container_name: Grafana
+    restart: unless-stopped
+    depends_on: [prometheus, loki]
+    environment:
+      GF_SERVER_ROOT_URL: https://${CUSTOM_DOMAIN}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      NTFY_URL: ${NTFY_URL}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    # No published port: reached only through caddy, over the tailnet.
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    container_name: Prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-remote-write-receiver
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  loki:
+    image: grafana/loki:3.7.7
+    container_name: Loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+
+  alloy:
+    image: grafana/alloy:v1.19.2
+    container_name: Alloy
+    restart: unless-stopped
+    depends_on: [prometheus, loki]
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    user: root
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log/journal:/var/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - /run/udev:/run/udev:ro
+      - /:/rootfs:ro,rslave
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
+    container_name: cAdvisor
+    restart: unless-stopped
+    command:
+      - --housekeeping_interval=15s
+      - --docker_only=true
+      - --store_container_labels=false
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+
+  nvidia-gpu-exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:1.14.0
+    container_name: nvidia_gpu_exporter
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  caddy:
+    build:
+      context: ../_caddy-tailscale
+    image: services/caddy-tailscale:local
+    container_name: Monitoring_caddy
+    restart: unless-stopped
+    depends_on: [grafana]
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - tailscale_state:/var/lib/tailscale-caddy
+
+  # One-shot: keeps the DNS-only CNAME ${CUSTOM_DOMAIN} -> the node's MagicDNS
+  # name in Cloudflare. Runs to completion and exits on every `up`.
+  dns-sync:
+    build:
+      context: ../_dns-sync
+    image: services/dns-sync:local
+    container_name: Monitoring_dns_sync
+    restart: "no"
+    environment:
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+
+volumes:
+  grafana_data:
+  prometheus_data:
+  loki_data:
+  alloy_data:
+  caddy_data:
+  caddy_config:
+  tailscale_state:

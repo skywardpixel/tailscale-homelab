@@ -1,0 +1,110 @@
+// Single collection agent for the host.
+//   metrics -> Prometheus (remote-write)
+//   logs    -> Loki
+//
+// Sources: host (unix exporter, in-process), cAdvisor + nvidia_gpu_exporter
+// (scraped over the compose network), every Docker container's logs, and the
+// systemd journal.
+
+// ============================ metrics ============================
+
+prometheus.exporter.unix "host" {
+	rootfs_path = "/rootfs"
+	procfs_path = "/rootfs/proc"
+	sysfs_path  = "/rootfs/sys"
+
+	filesystem {
+		fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tmpfs|tracefs)$"
+		mount_points_exclude = "^/(dev|proc|sys|run|var/lib/docker/.+|rootfs/(dev|proc|sys|run|var/lib/docker/.+))($|/)"
+		mount_timeout        = "5s"
+	}
+}
+
+prometheus.scrape "host" {
+	targets         = prometheus.exporter.unix.host.targets
+	scrape_interval = "30s"
+	forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.scrape "infra" {
+	targets = [
+		{ "__address__" = "cadvisor:8080", "job" = "cadvisor" },
+		{ "__address__" = "nvidia-gpu-exporter:9835", "job" = "nvidia_gpu" },
+		{ "__address__" = "localhost:12345", "job" = "alloy" },
+	]
+	scrape_interval = "30s"
+	forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+	endpoint {
+		url = "http://prometheus:9090/api/v1/write"
+	}
+}
+
+// ============================= logs ==============================
+
+discovery.docker "containers" {
+	host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+	targets = discovery.docker.containers.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		target_label  = "compose_project"
+	}
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "compose_service"
+	}
+	rule {
+		source_labels = ["__meta_docker_container_log_stream"]
+		target_label  = "stream"
+	}
+}
+
+loki.source.docker "containers" {
+	host          = "unix:///var/run/docker.sock"
+	targets       = discovery.docker.containers.targets
+	relabel_rules = discovery.relabel.containers.rules
+	labels        = { job = "docker" }
+	forward_to    = [loki.write.default.receiver]
+}
+
+loki.source.journal "system" {
+	path          = "/var/log/journal"
+	max_age       = "12h"
+	labels        = { job = "systemd-journal" }
+	relabel_rules = loki.relabel.journal.rules
+	forward_to    = [loki.write.default.receiver]
+}
+
+loki.relabel "journal" {
+	forward_to = []
+
+	rule {
+		source_labels = ["__journal__systemd_unit"]
+		target_label  = "unit"
+	}
+	rule {
+		source_labels = ["__journal_priority_keyword"]
+		target_label  = "level"
+	}
+	rule {
+		target_label = "job"
+		replacement  = "systemd-journal"
+	}
+}
+
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}

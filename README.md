@@ -10,6 +10,7 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 | `autobangumi`  | `ghcr.io/estrellaxd/auto_bangumi`  | `<host>.<tailnet>.ts.net` + custom domain |
 | `jellyfin`     | `jellyfin/jellyfin`                | `<host>.<tailnet>.ts.net` + custom domain |
 | `qbittorrent`  | `lscr.io/linuxserver/qbittorrent`  | `<host>.<tailnet>.ts.net` + custom domain |
+| `monitoring`   | Grafana + Prometheus + Loki + Alloy | `<host>.<tailnet>.ts.net` + custom domain |
 
 Each project is a directory with a `compose.yaml`, a `Caddyfile`, and an
 `.env.example`. Copy `.env.example` to `.env` (gitignored) and fill it in —
@@ -173,3 +174,56 @@ supplementary group so it can manage files under `DOWNLOADS_DIR` (mounted
 read-write at the same path inside and out). The BitTorrent peer port
 (`BT_PORT`, default 6881) is the one port published to the host — peer data
 transfer, not a management UI.
+
+## Monitoring
+
+`monitoring/` covers the whole host and every Docker project. Grafana is the
+only web face (same caddy + dns-sync front as the others → `grafana.<domain>`);
+everything else talks only on the compose network.
+
+```
+Alloy ──metrics──▶ Prometheus ─┐
+  │  (host/unix exporter,       ├─▶ Grafana ──alerts──▶ ntfy
+  │   cAdvisor, nvidia GPU)     │
+  └──logs────────▶ Loki ────────┘
+     (every container + journald)
+```
+
+| Container | Job |
+|---|---|
+| `grafana` | dashboards + unified alerting (no separate Alertmanager) |
+| `prometheus` | metrics store, 30-day retention, remote-write receiver |
+| `loki` | log store, single-binary + filesystem, 14-day retention |
+| `alloy` | the one collector — host metrics, container logs, journald |
+| `cadvisor` | per-container CPU / memory / restarts |
+| `nvidia-gpu-exporter` | GPU util / VRAM / temp / NVENC sessions |
+
+Everything under `monitoring/grafana/provisioning/` and
+`monitoring/grafana/dashboards/` is loaded on start: the two datasources, a
+**Homelab Overview** dashboard + **Node Exporter Full** (Grafana 1860), the
+`ntfy` contact point, and five alert rules (disk, RAM, GPU temp, a scrape
+target down, container restart loop).
+
+### Setup
+
+`.env` needs the usual tailscale/Cloudflare block plus:
+
+- `GRAFANA_ADMIN_PASSWORD` — initial `admin` password
+- `NTFY_URL` — an unguessable ntfy topic, with templating so alerts render as
+  real text instead of raw JSON:
+  `https://ntfy.sh/<topic>?template=yes&title=%7B%7B.title%7D%7D&message=%7B%7B.message%7D%7D`
+
+```sh
+cd monitoring
+cp .env.example .env      # then edit
+docker compose up -d
+```
+
+There is **no host node_exporter** — Alloy's unix exporter reads the host
+through the `/rootfs`, `/var/log/journal` and `docker.sock` bind mounts.
+`cadvisor` runs `privileged` (it needs raw cgroup/device access); everything
+else is unprivileged.
+
+Stack footprint is ~1 GB RAM. No memory limits are set — add `mem_limit:` per
+service if the host gets tight (it also runs Jellyfin transcodes, ollama and
+Sunshine).
