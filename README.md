@@ -8,7 +8,7 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 | Project        | Image                              | Reachable at                              |
 |----------------|------------------------------------|-------------------------------------------|
 | `animegakill`  | `ghcr.io/skywardpixel/animegakill` | no web UI — driven by `config.yaml`       |
-| `autobangumi`  | `ghcr.io/estrellaxd/auto_bangumi`  | `<host>.<tailnet>.ts.net` + custom domain |
+| `autobangumi`  | `ghcr.io/estrellaxd/auto_bangumi`  | retired — replaced by `animegakill`       |
 | `jellyfin`     | `jellyfin/jellyfin`                | `<host>.<tailnet>.ts.net` + custom domain |
 | `qbittorrent`  | `lscr.io/linuxserver/qbittorrent`  | `<host>.<tailnet>.ts.net` + custom domain |
 | `monitoring`   | Grafana + Prometheus + Loki + Alloy | `<host>.<tailnet>.ts.net` + custom domain |
@@ -204,7 +204,7 @@ It is deliberately smaller than the other projects here:
 ```sh
 cd animegakill
 cp .env.example .env               # DOWNLOADS_DIR + TZ; the rest stays empty
-$EDITOR config.yaml                # add your feeds
+cp config.example.yaml config.yaml # gitignored; add your feeds here
 
 docker compose run --rm animegakill feeds   # what each entry parses/filters to
 docker compose run --rm animegakill -n once # dry run: what a pass would do
@@ -213,14 +213,23 @@ docker compose up -d
 
 ### Editing feeds
 
-`config.yaml` is the service. It is committed on purpose — the feed list is
-worth having in git — and carries no secrets: `${QB_PASS}`, `${MIKAN_TOKEN}`
-and `${DOWNLOADS_DIR}` are expanded from `.env` at load time.
+`config.yaml` is the service. It is **gitignored** — a subscription list is
+personal and this repo is public — so `config.example.yaml` is committed as the
+template, the same way `.env.example` is. It carries no secrets either:
+`${QB_PASS}`, `${MIKAN_TOKEN}` and `${DOWNLOADS_DIR}` are expanded from `.env`
+at load time.
 
 ```sh
 $EDITOR animegakill/config.yaml
 docker compose run --rm animegakill feeds    # verify before applying
 docker compose restart animegakill
+```
+
+After adding a show, seed it so the back catalogue is not re-downloaded on top
+of episodes you already have:
+
+```sh
+docker compose run --rm animegakill mark-seen -f "<feed name>"
 ```
 
 `feeds` prints one line per entry with the verdict — `+` would download,
@@ -232,13 +241,21 @@ container's healthcheck rather than being silently ignored.
 Set `skip_backlog: true` (the default here) when adding a mid-season show so it
 picks up from the next episode instead of queueing the whole season.
 
-### Running it alongside AutoBangumi
+### Migrated from AutoBangumi
 
-Both can run at once — they are separate compose projects. Give them
-**different qBittorrent categories** (`Bangumi` vs AutoBangumi's) so their
-renamers never touch the same torrents, and do not subscribe both to the same
-feed. Once you are happy with animegakill, `cd autobangumi && docker compose
-down` retires the old one; its volumes stay until you remove them.
+`autobangumi/` is retired (`docker compose down`) — its four subscriptions now
+live in `animegakill/config.yaml`. Its volumes are untouched, so bringing it
+back is one `docker compose up -d`.
+
+Two things that bit during the migration, worth knowing if you ever run both
+again:
+
+- **Use a different qBittorrent category.** animegakill uses `AnimeGaKill`;
+  AutoBangumi used `Bangumi`. The renamer selects torrents *by category*, so
+  sharing one means each tool renames the other's downloads.
+- **Seed state before the first real run.** Without `mark-seen`, a newly
+  migrated feed looks entirely new and re-downloads the whole back catalogue on
+  top of files you already have.
 
 ## Monitoring
 

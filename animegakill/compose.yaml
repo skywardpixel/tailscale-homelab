@@ -2,7 +2,7 @@ name: animegakill
 
 services:
   animegakill:
-    image: ghcr.io/skywardpixel/animegakill:0.1.1
+    image: ghcr.io/skywardpixel/animegakill:0.1.3
     container_name: AnimeGaKill
     restart: unless-stopped
     environment:
