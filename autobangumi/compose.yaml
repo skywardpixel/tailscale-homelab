@@ -2,7 +2,7 @@ name: autobangumi
 
 services:
   autobangumi:
-    image: ghcr.io/estrellaxd/auto_bangumi:latest
+    image: ghcr.io/estrellaxd/auto_bangumi:${AUTOBANGUMI_VERSION:-3.3.5}
     container_name: AutoBangumi
     restart: unless-stopped
     environment:
