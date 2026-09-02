@@ -14,14 +14,19 @@ qbittorrent:
   # in .env only if you remove that whitelist.
   username: admin
   password: ${QB_PASS:-}
-  # Torrents land here; the renamer only ever touches this category.
-  category: Bangumi
+  # Torrents land here, and the renamer ONLY ever touches this category.
+  # It must not be the one AutoBangumi uses (it uses `Bangumi`), or this
+  # renamer would operate on torrents another tool already manages.
+  category: AnimeGaKill
   tags: [animegakill]
 
 downloader:
   # qBittorrent mounts DOWNLOADS_DIR at the same path inside and out, so this
   # one value is correct on both sides.
-  save_path: ${DOWNLOADS_DIR}/Bangumi
+  # /mnt/downloads/anime — the library root Jellyfin already scans (its
+  # MEDIA_DIR is /mnt/downloads). Writing anywhere else means the episodes
+  # download fine and never appear in Jellyfin.
+  save_path: ${DOWNLOADS_DIR}/anime
   path_template: "{title}/Season {season_num}"
   # Which title to use when a release carries several: en | zh | jp
   prefer_language: en
@@ -43,13 +48,15 @@ program:
   state_file: ${AGK_STATE:-/data/animegakill.db}
   log_level: INFO
   # On a feed's first poll, mark everything already in it as seen instead of
-  # downloading the whole back catalogue. Leave true when adding a mid-season
-  # show; set false if you want the existing episodes too.
-  skip_backlog: true
+  # downloading the whole back catalogue. false = also take whatever the feed
+  # already lists when a feed is added. Flip to true before adding a
+  # long-running show you do not want the full back catalogue of.
+  skip_backlog: false
 
 # Applied to every feed, on top of each feed's own filters. Case-insensitive
 # regexes matched against the raw release title.
 exclude:
+  - '720[pP]'     # AutoBangumi filtered this on every show
   - '\d+-\d+'     # batch releases: "01-12"
   - '\d+~\d+'
   - 合集
@@ -67,17 +74,27 @@ exclude:
 #   - include: every pattern must match;  exclude: any match rejects
 # ---------------------------------------------------------------------------
 feeds:
+  # One block per show. The usual shape:
+  #
+  #   - name:    identifies it in logs; also becomes the qBittorrent tag agk-<slug>
+  #   - url:     Mikan "subscribe to this group's releases of this show"
+  #   - title:   the name used on disk. Set it: it should match the folder the
+  #              show already occupies under the library root, so Jellyfin does
+  #              not end up with two entries for one show.
+  #   - season:  defaults to whatever the release title implies
+  #   - offset:  added to every episode number (offset: -12 turns ep 13 into S02E01)
+  #   - include: every pattern must match;  exclude: any match rejects
+  #
+  # After adding a show, seed it so you do not re-download what you already
+  # have:  docker compose run --rm animegakill mark-seen -f "<name>"
+
   - name: Sousou no Frieren
     url: https://mikanani.me/RSS/Bangumi?bangumiId=3141&subgroupid=583
     title: Sousou no Frieren
     season: 1
-    include:
-      - '1080[pP]'
-    enabled: false          # <- example. Replace with your own and enable.
 
   # One feed carrying every show you follow on Mikan. The show name and season
   # come from each release title instead of from this block.
   # - name: Mikan subscriptions
   #   url: https://mikanani.me/RSS/MyBangumi?token=${MIKAN_TOKEN}
   #   mode: aggregated
-  #   exclude: ['720[pP]']
