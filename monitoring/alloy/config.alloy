@@ -36,6 +36,7 @@ prometheus.scrape "infra" {
 	targets = [
 		{ "__address__" = "cadvisor:8080", "job" = "cadvisor" },
 		{ "__address__" = "nvidia-gpu-exporter:9835", "job" = "nvidia_gpu" },
+		{ "__address__" = "smartctl-exporter:9633", "job" = "smartctl" },
 		{ "__address__" = "localhost:12345", "job" = "alloy" },
 	]
 	scrape_interval = "30s"

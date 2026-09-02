@@ -916,7 +916,7 @@
   {
    "type": "row",
    "id": 18,
-   "title": "Containers",
+   "title": "Disks (SMART)",
    "collapsed": false,
    "gridPos": {
     "h": 1,
@@ -929,6 +929,236 @@
   {
    "type": "table",
    "id": 19,
+   "title": "Drive health",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 24,
+    "x": 0,
+    "y": 25
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "format": "table",
+     "instant": true,
+     "expr": "smartctl_device_smart_status"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "format": "table",
+     "instant": true,
+     "expr": "smartctl_device_temperature{temperature_type=\"current\"}"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "format": "table",
+     "instant": true,
+     "expr": "smartctl_device_power_on_seconds / 3600"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "format": "table",
+     "instant": true,
+     "expr": "smartctl_device_attribute{attribute_name=\"Wear_Leveling_Count\",attribute_value_type=\"value\"}"
+    },
+    {
+     "refId": "E",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "format": "table",
+     "instant": true,
+     "expr": "sum by (device) (smartctl_device_attribute{attribute_name=~\"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable\",attribute_value_type=\"raw\"})"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "joinByField",
+     "options": {
+      "byField": "device",
+      "mode": "outer"
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true,
+       "Time 1": true,
+       "Time 2": true,
+       "Time 3": true,
+       "Time 4": true,
+       "Time 5": true,
+       "__name__": true,
+       "instance": true,
+       "job": true,
+       "attribute_name": true,
+       "attribute_value_type": true,
+       "temperature_type": true
+      },
+      "renameByName": {
+       "device": "Device",
+       "Value #A": "SMART OK",
+       "Value #B": "Temp \u00b0C",
+       "Value #C": "Power-on hrs",
+       "Value #D": "Wear (100\u21920)",
+       "Value #E": "Bad sectors"
+      }
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "SMART OK"
+      },
+      "properties": [
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "0": {
+            "text": "FAIL",
+            "color": "red"
+           },
+           "1": {
+            "text": "pass",
+            "color": "green"
+           }
+          }
+         }
+        ]
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-text"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Temp \u00b0C"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "green",
+           "value": null
+          },
+          {
+           "color": "yellow",
+           "value": 50
+          },
+          {
+           "color": "red",
+           "value": 60
+          }
+         ]
+        }
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Bad sectors"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "green",
+           "value": null
+          },
+          {
+           "color": "red",
+           "value": 1
+          }
+         ]
+        }
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Power-on hrs"
+      },
+      "properties": [
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     }
+    ]
+   },
+   "options": {}
+  },
+  {
+   "type": "row",
+   "id": 20,
+   "title": "Containers",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 31
+   },
+   "panels": []
+  },
+  {
+   "type": "table",
+   "id": 21,
    "title": "Per-container resource use",
    "datasource": {
     "type": "prometheus",
@@ -938,7 +1168,7 @@
     "h": 9,
     "w": 24,
     "x": 0,
-    "y": 25
+    "y": 32
    },
    "targets": [
     {
@@ -1025,7 +1255,7 @@
   },
   {
    "type": "timeseries",
-   "id": 20,
+   "id": 22,
    "title": "Container restarts (1h window)",
    "datasource": {
     "type": "prometheus",
@@ -1035,7 +1265,7 @@
     "h": 6,
     "w": 24,
     "x": 0,
-    "y": 34
+    "y": 41
    },
    "targets": [
     {
@@ -1075,20 +1305,20 @@
   },
   {
    "type": "row",
-   "id": 21,
+   "id": 23,
    "title": "Logs",
    "collapsed": false,
    "gridPos": {
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 40
+    "y": 47
    },
    "panels": []
   },
   {
    "type": "timeseries",
-   "id": 22,
+   "id": 24,
    "title": "Error-log rate by container",
    "datasource": {
     "type": "loki",
@@ -1098,7 +1328,7 @@
     "h": 6,
     "w": 24,
     "x": 0,
-    "y": 41
+    "y": 48
    },
    "targets": [
     {
@@ -1137,7 +1367,7 @@
   },
   {
    "type": "logs",
-   "id": 23,
+   "id": 25,
    "title": "All container logs",
    "datasource": {
     "type": "loki",
@@ -1147,7 +1377,7 @@
     "h": 12,
     "w": 24,
     "x": 0,
-    "y": 47
+    "y": 54
    },
    "targets": [
     {

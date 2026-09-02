@@ -195,14 +195,16 @@ Alloy ──metrics──▶ Prometheus ─┐
 | `prometheus` | metrics store, 30-day retention, remote-write receiver |
 | `loki` | log store, single-binary + filesystem, 14-day retention |
 | `alloy` | the one collector — host metrics, container logs, journald |
-| `cadvisor` | per-container CPU / memory / restarts |
+| `cadvisor` | per-container CPU / memory / restarts / OOM |
 | `nvidia-gpu-exporter` | GPU util / VRAM / temp / NVENC sessions |
+| `smartctl-exporter` | disk SMART health, sectors, wear, temp (privileged, `/dev` ro) |
 
 Everything under `monitoring/grafana/provisioning/` and
 `monitoring/grafana/dashboards/` is loaded on start: the two datasources, a
 **Homelab Overview** dashboard + **Node Exporter Full** (Grafana 1860), the
-`ntfy` contact point, and five alert rules (disk, RAM, GPU temp, a scrape
-target down, container restart loop).
+`ntfy` contact point, and 14 alert rules — disk full, RAM, CPU temp, GPU temp,
+scrape target down, container restart loop, container/host OOM kill, systemd
+unit failed, SMART health/bad-sectors/temp/wear, and SSH brute-force (Loki).
 
 ### Setup
 
