@@ -21,7 +21,7 @@
       "versioning": "semver"
     },
     {
-      "description": "animegakill: SemVer. The package is private (it follows the AnimeGaKill repo), so RENOVATE_TOKEN needs read:packages for lookups to succeed - without it Renovate finds no versions and stays quiet. Making the GHCR package public also works.",
+      "description": "animegakill: SemVer, so pre-release tags are ignored. Public package, so no registry credentials are needed for the lookup.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/skywardpixel/animegakill"],
       "versioning": "semver"
