@@ -6,7 +6,6 @@
     ":semanticCommitsDisabled"
   ],
   "timezone": "America/Los_Angeles",
-  "schedule": ["before 9am on monday"],
   "packageRules": [
     {
       "description": "qBittorrent (LinuxServer): track only the clean X.Y.Z app-version tag, not the 5.2.3_v2.0.14-lsNNN or -libtorrentv1 variants",

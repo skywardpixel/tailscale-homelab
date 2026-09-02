@@ -89,9 +89,17 @@ a pinned tag still picks up base-OS security rebuilds (LinuxServer republishes
 the `X.Y.Z` qBittorrent tag; that's why it's pinned to the short tag, not the
 `…_v2.0.14-lsNNN` form).
 
-[Renovate](https://docs.renovatebot.com/) (config in `renovate.json`) watches
-the pinned tags — `compose.yaml` images and the two `Dockerfile`s — and opens
-one PR per update with a link to the changelog. Nothing updates on its own.
+[Renovate](https://docs.renovatebot.com/) watches the pinned tags —
+`compose.yaml` images and the two `Dockerfile`s — and opens one PR per update
+with a link to the changelog. Nothing updates on its own.
+
+It runs **self-hosted** from `.github/workflows/renovate.yml` (a scheduled
+GitHub Action, no Mend app). One-time setup: create a fine-grained PAT scoped
+to this repo with **Contents / Pull requests / Issues / Workflows: Read and
+write**, add it as the `RENOVATE_TOKEN` Actions secret. The workflow runs
+Monday mornings, or on demand via *Actions → Renovate → Run workflow*.
+`renovate.json` holds the rules; a "Dependency Dashboard" issue tracks
+everything pending.
 
 To take an update:
 
