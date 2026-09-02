@@ -2,6 +2,10 @@
 .env
 !*/.env.example
 
+# Local compose tweaks (image overrides, debug ports) — host-specific.
+compose.override.yaml
+compose.override.yml
+
 # OS / editor cruft
 .DS_Store
 *.swp

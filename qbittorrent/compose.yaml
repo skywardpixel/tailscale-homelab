@@ -2,7 +2,7 @@ name: qbittorrent
 
 services:
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:${QBITTORRENT_VERSION:-5.2.3}
+    image: lscr.io/linuxserver/qbittorrent:5.2.3
     container_name: qBittorrent
     restart: unless-stopped
     environment:

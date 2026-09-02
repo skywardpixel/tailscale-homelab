@@ -82,12 +82,13 @@ docker compose down            # stop (volumes kept)
 
 ## Upgrading
 
-Image versions are **pinned** in each `compose.yaml`
-(`image: …:${SOMETHING_VERSION:-<pinned>}`) — not `latest` — so a rebuild or a
-fresh host gets the exact stack that was last tested. `docker compose pull` on
-a pinned tag still picks up base-OS security rebuilds (LinuxServer republishes
-the `X.Y.Z` qBittorrent tag; that's why it's pinned to the short tag, not the
-`…_v2.0.14-lsNNN` form).
+Image versions are **pinned** to an explicit tag in each `compose.yaml`
+(`image: name:1.2.3`) — not `latest` — so a rebuild or a fresh host gets the
+exact stack that was last tested. `docker compose pull` on a pinned tag still
+picks up base-OS security rebuilds (LinuxServer republishes the `X.Y.Z`
+qBittorrent tag; that's why it's pinned to the short tag, not the
+`…_v2.0.14-lsNNN` form). To try a different version without editing a tracked
+file, drop the override in a `compose.override.yaml` (gitignored).
 
 [Renovate](https://docs.renovatebot.com/) watches the pinned tags —
 `compose.yaml` images and the two `Dockerfile`s — and opens one PR per update
