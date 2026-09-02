@@ -7,6 +7,7 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 
 | Project        | Image                              | Reachable at                              |
 |----------------|------------------------------------|-------------------------------------------|
+| `animegakill`  | `ghcr.io/skywardpixel/animegakill` | no web UI — driven by `config.yaml`       |
 | `autobangumi`  | `ghcr.io/estrellaxd/auto_bangumi`  | `<host>.<tailnet>.ts.net` + custom domain |
 | `jellyfin`     | `jellyfin/jellyfin`                | `<host>.<tailnet>.ts.net` + custom domain |
 | `qbittorrent`  | `lscr.io/linuxserver/qbittorrent`  | `<host>.<tailnet>.ts.net` + custom domain |
@@ -15,6 +16,9 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 Each project is a directory with a `compose.yaml`, a `Caddyfile`, and an
 `.env.example`. Copy `.env.example` to `.env` (gitignored) and fill it in —
 `docker compose` reads `.env` automatically. No secrets are committed.
+
+`animegakill` is the one exception: it has no web UI, so it has no `Caddyfile`
+and no `caddy`/`dns-sync` sidecars — just the app on the `downloads` network.
 
 ## How the Caddy + Tailscale front works
 
@@ -176,6 +180,65 @@ out) — a supplementary `group_add` is silently dropped by this image's
 BitTorrent peer port
 (`BT_PORT`, default 6881) is the one port published to the host — peer data
 transfer, not a management UI.
+
+## animegakill
+
+A second, lighter take on the same job as AutoBangumi: watch anime RSS feeds,
+hand new episodes to qBittorrent, rename the files in place so Jellyfin reads
+them. The difference is that **every feed lives in `animegakill/config.yaml`**,
+tracked in this repo, instead of in a web UI backed by a mutable database.
+
+Source and image: [skywardpixel/AnimeGaKill](https://github.com/skywardpixel/AnimeGaKill).
+
+It is deliberately smaller than the other projects here:
+
+- **No web UI**, so no `Caddyfile`, no `caddy`, no `dns-sync`, and no
+  Tailscale block in `.env`. `docker compose logs` is the whole interface.
+- **No credentials needed.** It sits on the `downloads` network, which
+  qBittorrent's WebUI auth-subnet whitelist bypasses, and it only logs in if
+  the server actually returns a 403. `QB_PASS` stays empty.
+- **No media mount and no PUID/PGID.** It never touches the files — it calls
+  qBittorrent's API and writes one sqlite file — so it runs `read_only`, with
+  `cap_drop: ALL`, as a non-root user.
+
+```sh
+cd animegakill
+cp .env.example .env               # DOWNLOADS_DIR + TZ; the rest stays empty
+$EDITOR config.yaml                # add your feeds
+
+docker compose run --rm animegakill feeds   # what each entry parses/filters to
+docker compose run --rm animegakill -n once # dry run: what a pass would do
+docker compose up -d
+```
+
+### Editing feeds
+
+`config.yaml` is the service. It is committed on purpose — the feed list is
+worth having in git — and carries no secrets: `${QB_PASS}`, `${MIKAN_TOKEN}`
+and `${DOWNLOADS_DIR}` are expanded from `.env` at load time.
+
+```sh
+$EDITOR animegakill/config.yaml
+docker compose run --rm animegakill feeds    # verify before applying
+docker compose restart animegakill
+```
+
+`feeds` prints one line per entry with the verdict — `+` would download,
+`-` filtered by a rule (and which one), `?` unparsable — which is the fastest
+way to catch a wrong `include:` or a season/offset mistake before it downloads
+anything. `config.yaml` itself is validated on start; a typo fails the
+container's healthcheck rather than being silently ignored.
+
+Set `skip_backlog: true` (the default here) when adding a mid-season show so it
+picks up from the next episode instead of queueing the whole season.
+
+### Running it alongside AutoBangumi
+
+Both can run at once — they are separate compose projects. Give them
+**different qBittorrent categories** (`Bangumi` vs AutoBangumi's) so their
+renamers never touch the same torrents, and do not subscribe both to the same
+feed. Once you are happy with animegakill, `cd autobangumi && docker compose
+down` retires the old one; its volumes stay until you remove them.
 
 ## Monitoring
 

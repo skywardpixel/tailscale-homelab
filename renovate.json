@@ -21,6 +21,12 @@
       "versioning": "semver"
     },
     {
+      "description": "animegakill: SemVer. The package is private (it follows the AnimeGaKill repo), so RENOVATE_TOKEN needs read:packages for lookups to succeed - without it Renovate finds no versions and stays quiet. Making the GHCR package public also works.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/skywardpixel/animegakill"],
+      "versioning": "semver"
+    },
+    {
       "description": "Group the caddy base image bumps into one PR",
       "matchFileNames": ["_caddy-tailscale/Dockerfile"],
       "groupName": "caddy base image"
