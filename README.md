@@ -73,13 +73,42 @@ docker compose logs -f caddy      # watch the tailnet join + cert issuance
 `docker compose logs dns-sync`, or re-run it on its own with
 `docker compose run --rm dns-sync`.
 
-Update / restart / tear down:
+Restart / tear down:
 
 ```sh
-docker compose pull && docker compose up -d --build   # update images
-docker compose restart caddy                          # reload Caddyfile changes
-docker compose down                                   # stop (volumes kept)
+docker compose restart caddy   # reload Caddyfile changes
+docker compose down            # stop (volumes kept)
 ```
+
+## Upgrading
+
+Image versions are **pinned** in each `compose.yaml`
+(`image: …:${SOMETHING_VERSION:-<pinned>}`) — not `latest` — so a rebuild or a
+fresh host gets the exact stack that was last tested. `docker compose pull` on
+a pinned tag still picks up base-OS security rebuilds (LinuxServer republishes
+the `X.Y.Z` qBittorrent tag; that's why it's pinned to the short tag, not the
+`…_v2.0.14-lsNNN` form).
+
+[Renovate](https://docs.renovatebot.com/) (config in `renovate.json`) watches
+the pinned tags — `compose.yaml` images and the two `Dockerfile`s — and opens
+one PR per update with a link to the changelog. Nothing updates on its own.
+
+To take an update:
+
+```sh
+# merge the Renovate PR on GitHub, then on the host:
+git pull
+cd <project>
+docker compose pull                  # app images (skips the built ones)
+docker compose up -d --build         # --build picks up _caddy-tailscale / _dns-sync changes
+docker compose logs -f               # healthcheck green, WebUI loads, one real task works
+```
+
+Rolling back means checking out the previous tag and `up -d` again — but the
+app may have migrated its own database/config in the volume on first start
+(qBittorrent does this), and those migrations are not always reversible. Read
+the release notes before a major bump; snapshot the `config` volume first if
+it's one you can't recreate.
 
 ## Jellyfin notes
 
