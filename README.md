@@ -38,24 +38,40 @@ sidecar that:
   no inbound reachability);
 - reverse-proxies both to the app over the project's compose network.
 
+A second shared build, `_dns-sync/`, is wired into each project as a one-shot
+`dns-sync` service. On every `up` it ensures Cloudflare holds a **DNS-only
+`CNAME` `${CUSTOM_DOMAIN}` → `${TS_HOSTNAME}.${TAILNET_NAME}.ts.net`**, so the
+custom domain routes to this node over the tailnet without anyone pasting an
+IP. Pointing at the MagicDNS name (not an `A` record) means it never needs
+updating when the node's Tailscale IP changes. It's idempotent — only writes
+when the record is missing or wrong — and exits.
+
 ### Prerequisites
 
 - A tailnet with **HTTPS Certificates** enabled (Admin console → DNS).
 - One Tailscale auth key **per node** (non-ephemeral). Node identity then
   persists in the `tailscale_state` volume across restarts.
-- A Cloudflare API token scoped to **Zone → DNS → Edit** for the zone behind
-  `${CUSTOM_DOMAIN}`. One token can cover multiple services in the same zone.
-- For each custom domain: a **DNS-only** (grey-cloud) `A` record pointing at
-  that node's Tailscale IPv4 (`docker compose exec caddy tailscale ip -4`).
+- A Cloudflare API token with **Zone → DNS → Edit** (plus **Zone → Zone →
+  Read**, which the "Edit zone DNS" template already includes) for the zone
+  behind `${CUSTOM_DOMAIN}`. One token can cover multiple services in the same
+  zone. Used for both the ACME DNS-01 challenge and the `dns-sync` service.
+
+The custom-domain DNS record is created and kept current by the `dns-sync`
+service — no manual record needed. It still only resolves for devices on the
+tailnet (MagicDNS), which is the point.
 
 ## Bring up a project
 
 ```sh
 cd <project>
 cp .env.example .env      # then edit .env
-docker compose up -d
+docker compose up -d              # also runs dns-sync once (creates the CNAME)
 docker compose logs -f caddy      # watch the tailnet join + cert issuance
 ```
+
+`dns-sync` runs as part of `up` and exits; check it with
+`docker compose logs dns-sync`, or re-run it on its own with
+`docker compose run --rm dns-sync`.
 
 Update / restart / tear down:
 

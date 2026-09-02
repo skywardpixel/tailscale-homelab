@@ -45,6 +45,20 @@ services:
       - caddy_config:/config
       - tailscale_state:/var/lib/tailscale-caddy
 
+  # One-shot: keeps the DNS-only CNAME ${CUSTOM_DOMAIN} -> the node's MagicDNS
+  # name in Cloudflare. Runs to completion and exits on every `up`.
+  dns-sync:
+    build:
+      context: ../_dns-sync
+    image: services/dns-sync:local
+    container_name: Jellyfin_dns_sync
+    restart: "no"
+    environment:
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+
 volumes:
   config:
   cache:
