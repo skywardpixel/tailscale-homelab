@@ -5,14 +5,15 @@
 	}
 }
 
-# qBittorrent rejects requests whose Host header isn't one it expects, so
-# rewrite Host to the upstream's own host:port. This is the standard way to
-# put qBittorrent behind a reverse proxy without disabling its host-header
-# and CSRF checks.
+# Pass the browser's original Host through untouched (Caddy's default). On
+# every request that carries an Origin/Referer — i.e. every CSS/JS/image/API
+# request from the WebUI — qBittorrent 5.x compares that header's host against
+# the Host header and returns 401 on a mismatch. Rewriting Host to the
+# upstream's host:port makes all of those look cross-site, so only the initial
+# refererless page load succeeds. qBittorrent's Host-header validation accepts
+# any domain by default (WebUI\ServerDomains=*), so the real Host is fine.
 (qbittorrent) {
-	reverse_proxy qbittorrent:8080 {
-		header_up Host {upstream_hostport}
-	}
+	reverse_proxy qbittorrent:8080
 }
 
 {$TS_HOSTNAME}.{$TAILNET_NAME}.ts.net {
