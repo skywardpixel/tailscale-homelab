@@ -12,6 +12,7 @@
   "to": "now"
  },
  "editable": true,
+ "description": "Host, GPU, disks, containers and logs at a glance.",
  "panels": [
   {
    "type": "row",
