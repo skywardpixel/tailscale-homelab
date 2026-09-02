@@ -1,0 +1,38 @@
+name: Renovate
+
+# Self-hosted Renovate — no Mend app, no third-party account. Runs the CLI in
+# a GitHub Action on a schedule, using a fine-grained PAT stored as the
+# RENOVATE_TOKEN repo secret. Config lives in ../../renovate.json.
+#
+# The PAT needs, scoped to this repo:
+#   Contents: RW · Pull requests: RW · Issues: RW (dependency dashboard) ·
+#   Workflows: RW (so Renovate can bump the action pin below)
+
+on:
+  schedule:
+    - cron: "0 16 * * 1" # Mondays ~08:00 America/Los_Angeles
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: Log level
+        default: info
+        type: choice
+        options: [info, debug]
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: renovatebot/github-action@39b914146caeff8cd512e61c8992f1d5913af85c # v46.2.5
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
