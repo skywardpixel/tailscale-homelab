@@ -7,11 +7,11 @@ services:
     restart: unless-stopped
     environment:
       PUID: ${PUID:-1000}
+      # PGID must be the group that owns DOWNLOADS_DIR — a supplementary
+      # group_add is silently dropped by this image's s6-setuidgid.
       PGID: ${PGID:-1000}
       TZ: ${TZ:-Etc/UTC}
       WEBUI_PORT: "8080"
-    group_add:
-      - "${MEDIA_GID}"
     volumes:
       - config:/config
       # Same path inside and out so torrent save-paths are portable and match
