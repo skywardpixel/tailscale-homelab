@@ -8,10 +8,11 @@
   "timezone": "America/Los_Angeles",
   "packageRules": [
     {
-      "description": "qBittorrent (LinuxServer): track only the clean X.Y.Z app-version tag, not the 5.2.3_v2.0.14-lsNNN or -libtorrentv1 variants",
+      "description": "qBittorrent (LinuxServer): track only the clean X.Y.Z app-version tag. The regex versioning drops the 5.2.3_v2.0.14-lsNNN / -libtorrentv1 variants; allowedVersions drops the ancient 20.04.x Ubuntu-scheme tags (raise the major cap if qBittorrent ever reaches v10).",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["lscr.io/linuxserver/qbittorrent"],
-      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      "allowedVersions": "/^[0-9]\\.[0-9]+\\.[0-9]+$/"
     },
     {
       "description": "AutoBangumi: SemVer, so beta tags are ignored",
