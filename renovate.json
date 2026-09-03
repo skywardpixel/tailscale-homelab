@@ -21,12 +21,6 @@
       "versioning": "semver"
     },
     {
-      "description": "animegakill: SemVer, so pre-release tags are ignored. Public package, so no registry credentials are needed for the lookup.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/skywardpixel/animegakill"],
-      "versioning": "semver"
-    },
-    {
       "description": "Group the caddy base image bumps into one PR",
       "matchFileNames": ["_caddy-tailscale/Dockerfile"],
       "groupName": "caddy base image"

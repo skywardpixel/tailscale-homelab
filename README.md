@@ -8,7 +8,6 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 | Project        | Image                              | Reachable at                              |
 |----------------|------------------------------------|-------------------------------------------|
 | `autobangumi`  | `ghcr.io/estrellaxd/auto_bangumi`  | `<host>.<tailnet>.ts.net` + custom domain |
-| `animegakill`  | `ghcr.io/skywardpixel/animegakill` | retired — replaced by `autobangumi`       |
 | `jellyfin`     | `jellyfin/jellyfin`                | `<host>.<tailnet>.ts.net` + custom domain |
 | `qbittorrent`  | `lscr.io/linuxserver/qbittorrent`  | `<host>.<tailnet>.ts.net` + custom domain |
 | `monitoring`   | Grafana + Prometheus + Loki + Alloy | `<host>.<tailnet>.ts.net` + custom domain |
@@ -178,30 +177,29 @@ BitTorrent peer port
 (`BT_PORT`, default 6881) is the one port published to the host — peer data
 transfer, not a management UI.
 
-## animegakill (retired)
+## A note on animegakill
 
-`animegakill/` was a lighter, config-file-driven alternative to AutoBangumi:
-every feed lived in `animegakill/config.yaml`, tracked in this repo, instead of
-in a web UI backed by a mutable database. It ran here for one evening.
+For one evening this host ran `animegakill` instead of AutoBangumi: a lighter,
+config-file-driven downloader whose feeds lived in a `config.yaml` tracked in
+this repo rather than in a web UI backed by a mutable database. It is gone —
+directory, image, volume and upstream repo — and AutoBangumi never stopped
+being the tool that actually works.
 
-It is stopped, and AutoBangumi is the live stack again. The directory is left
-in the tree with its `animegakill_data` volume intact, but note that the image
-it references may no longer be published — check before `up -d`.
+Recorded here because the reason generalises. It identified an episode by
+`(feed, RSS guid)` in a SQLite file rather than by `(show, season, episode)`.
+That state could not be read from the CLI, was only ever appended to, and was
+never reconciled against the disk or qBittorrent -- so a deleted episode could
+never be re-fetched, and one episode carried by two feeds downloaded twice.
+Fixing it properly meant rebuilding identity around an inventory of what is on
+disk. Worth checking for in anything that replaces AutoBangumi later.
 
-What sent it back: identity was `(feed, RSS guid)` held in a SQLite file, not
-`(show, season, episode)`. That state was invisible from the CLI, only ever
-appended to, and never reconciled against the disk or qBittorrent — so a
-deleted episode could never be re-fetched, and the same episode from two feeds
-would download twice. Fixing it properly meant rebuilding identity around a
-disk inventory. AutoBangumi already works.
-
-Two things worth knowing if any second downloader is ever run alongside:
+If a second downloader is ever run alongside it, two things bite:
 
 - **Use a different qBittorrent category.** AutoBangumi manages `Bangumi`.
-  animegakill used `AnimeGaKill`. Renamers select torrents *by category*, so
-  sharing one means each tool renames the other's downloads.
-- **Seed state before the first real run**, or a migrated feed looks entirely
-  new and re-downloads the back catalogue on top of files already on disk.
+  Renamers select torrents *by category*, so sharing one means each tool
+  renames the other's downloads.
+- **Seed its state before the first real run**, or a migrated feed looks
+  entirely new and re-downloads the back catalogue over files already on disk.
 
 ## Monitoring
 
