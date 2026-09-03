@@ -1,12 +1,13 @@
-# Nightly at 03:30. The host's existing restic-backup.timer runs Sun 03:00;
-# these stay clear of each other while both are in service.
+# FALLBACK ONLY — see docker-backup.service. The container schedules itself by
+# default; this exists for hosts that would rather drive it externally.
 
 [Unit]
-Description=Run the containerized restic backup nightly
+Description=Run the containerized restic backup nightly (fallback scheduler)
 
 [Timer]
 OnCalendar=*-*-* 03:30:00
 # Catches up after the host has been off, rather than skipping the window.
+# The container's CATCHUP_AFTER_HOURS does the same job when self-scheduling.
 Persistent=true
 RandomizedDelaySec=20m
 

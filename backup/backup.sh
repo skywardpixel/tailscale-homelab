@@ -130,7 +130,12 @@ run_target() {
 		--files-from "$FILELIST"
 
 	CURRENT_STEP="retention on $target_name"
+	# --group-by host, NOT the default host+paths: the path set changes
+	# whenever a volume is added or an exclusion is edited, and the default
+	# would then start a separate retention lineage per path set, quietly
+	# keeping far more than the policy says.
 	restic forget \
+		--group-by host \
 		--tag docker-volumes \
 		--keep-daily "$RETENTION_DAILY" \
 		--keep-weekly "$RETENTION_WEEKLY" \

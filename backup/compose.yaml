@@ -3,9 +3,21 @@ name: backup
 # Containerized restic backup of every Docker volume worth keeping, plus this
 # repo's gitignored .env files.
 #
-# Not a long-running service — it is a one-shot, driven by the systemd timer in
-# ./systemd/ (or by hand). Run it with:
-#   docker compose run --rm backup
+# A long-running service that schedules itself with cron, so bringing it up is
+# the same `docker compose up -d` as every other project here — no host systemd
+# unit, no root, no hardcoded paths.
+#
+#   docker compose up -d                                  # start the scheduler
+#   docker compose exec backup /usr/local/bin/run-backup.sh   # run one now
+#   docker compose logs -f backup                         # watch it
+#
+# Two things replace what a systemd timer would have given us:
+#   - catch-up: on start, if the last success is older than CATCHUP_AFTER_HOURS
+#     it backs up immediately rather than waiting for the next slot (systemd's
+#     Persistent=true).
+#   - staleness healthcheck: the container goes unhealthy if nothing has
+#     succeeded within STALE_AFTER_HOURS. systemd gives you no equivalent, and
+#     "backups quietly stopped" is the failure that actually bites.
 #
 # The repository stays plain restic, so restoring needs only the restic binary:
 #   restic -r /mnt/data/restic-docker snapshots
@@ -16,7 +28,7 @@ services:
       context: .
     image: services/restic-backup:local
     container_name: restic_backup
-    restart: "no"
+    restart: unless-stopped
     environment:
       # Without this the repository cannot be read. Back it up somewhere that
       # is not this machine — see the README.
@@ -32,7 +44,16 @@ services:
       RETENTION_DAILY: ${RETENTION_DAILY:-7}
       RETENTION_WEEKLY: ${RETENTION_WEEKLY:-4}
       RETENTION_MONTHLY: ${RETENTION_MONTHLY:-12}
-      EXCLUDE_VOLUMES: ${EXCLUDE_VOLUMES:-jellyfin_cache *_caddy_data *_caddy_config monitoring_*_data}
+      EXCLUDE_VOLUMES: ${EXCLUDE_VOLUMES:-jellyfin_cache *_caddy_data *_caddy_config monitoring_*_data backup_state}
+      # Standard five-field cron. Default: nightly at 03:30.
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-30 3 * * *}
+      # Container clock, so the schedule means local time rather than UTC.
+      TZ: ${TZ:-America/Los_Angeles}
+      # Unhealthy once a success is this old.
+      STALE_AFTER_HOURS: ${STALE_AFTER_HOURS:-48}
+      # On start, back up immediately if the last success is older than this.
+      CATCHUP_AFTER_HOURS: ${CATCHUP_AFTER_HOURS:-26}
+      CATCHUP_ON_START: ${CATCHUP_ON_START:-true}
     volumes:
       # Every named volume, read-only. Mounting the directory rather than
       # listing volumes one by one means a service added later is backed up
@@ -44,3 +65,9 @@ services:
       # The repository itself. Deliberately NOT the host script's
       # /mnt/data/restic — the two run side by side until this one is proven.
       - ${BACKUP_REPO_DIR:-/mnt/data/restic-docker}:/repo
+      # Last-success timestamp, driving both catch-up and the healthcheck.
+      # Must outlive the container, hence a volume rather than /tmp.
+      - state:/state
+
+volumes:
+  state:
