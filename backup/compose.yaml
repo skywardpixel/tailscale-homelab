@@ -1,0 +1,46 @@
+name: backup
+
+# Containerized restic backup of every Docker volume worth keeping, plus this
+# repo's gitignored .env files.
+#
+# Not a long-running service — it is a one-shot, driven by the systemd timer in
+# ./systemd/ (or by hand). Run it with:
+#   docker compose run --rm backup
+#
+# The repository stays plain restic, so restoring needs only the restic binary:
+#   restic -r /mnt/data/restic-docker snapshots
+
+services:
+  backup:
+    build:
+      context: .
+    image: services/restic-backup:local
+    container_name: restic_backup
+    restart: "no"
+    environment:
+      # Without this the repository cannot be read. Back it up somewhere that
+      # is not this machine — see the README.
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:?set RESTIC_PASSWORD in backup/.env}
+      RESTIC_REPOSITORY: /repo
+      # Optional second target, e.g. s3:https://<account>.r2.cloudflarestorage.com/<bucket>
+      RESTIC_REPOSITORY_OFFSITE: ${RESTIC_REPOSITORY_OFFSITE:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      # Failure notifications reuse the monitoring project's ntfy topic.
+      NTFY_URL: ${NTFY_URL:-}
+      BACKUP_HOST: ${BACKUP_HOST:-dalaran}
+      RETENTION_DAILY: ${RETENTION_DAILY:-7}
+      RETENTION_WEEKLY: ${RETENTION_WEEKLY:-4}
+      RETENTION_MONTHLY: ${RETENTION_MONTHLY:-12}
+      EXCLUDE_VOLUMES: ${EXCLUDE_VOLUMES:-jellyfin_cache *_caddy_data *_caddy_config monitoring_*_data}
+    volumes:
+      # Every named volume, read-only. Mounting the directory rather than
+      # listing volumes one by one means a service added later is backed up
+      # by default instead of being silently missed.
+      - /var/lib/docker/volumes:/volumes:ro
+      # The compose projects, for the .env files that are gitignored and
+      # therefore exist nowhere else.
+      - ..:/config:ro
+      # The repository itself. Deliberately NOT the host script's
+      # /mnt/data/restic — the two run side by side until this one is proven.
+      - ${BACKUP_REPO_DIR:-/mnt/data/restic-docker}:/repo

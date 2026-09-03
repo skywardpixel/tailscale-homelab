@@ -1,0 +1,29 @@
+# Nightly containerized restic backup.
+#
+# Install (as root):
+#   systemctl enable --now /home/kyleyan/Developer/Services/backup/systemd/docker-backup.timer
+#
+# `systemctl enable` on a path symlinks the unit, so edits here take effect
+# after `systemctl daemon-reload` — the unit file stays version-controlled.
+# Adjust WorkingDirectory if the repo lives somewhere else.
+
+[Unit]
+Description=Containerized restic backup of Docker volumes
+Documentation=https://github.com/skywardpixel/tailscale-homelab
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/kyleyan/Developer/Services/backup
+ExecStart=/usr/bin/docker compose run --rm backup
+
+# Backups are never urgent enough to compete with a Jellyfin transcode.
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=2h
+
+# For a fully quiesced backup, stop the services first. Left commented out:
+# with ~250 MB the run takes seconds, but it still interrupts anyone watching.
+# ExecStartPre=/usr/bin/docker compose -f /home/kyleyan/Developer/Services/jellyfin/compose.yaml stop jellyfin
+# ExecStartPost=/usr/bin/docker compose -f /home/kyleyan/Developer/Services/jellyfin/compose.yaml start jellyfin

@@ -11,6 +11,7 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 | `jellyfin`     | `jellyfin/jellyfin`                | `<host>.<tailnet>.ts.net` + custom domain |
 | `qbittorrent`  | `lscr.io/linuxserver/qbittorrent`  | `<host>.<tailnet>.ts.net` + custom domain |
 | `monitoring`   | Grafana + Prometheus + Loki + Alloy | `<host>.<tailnet>.ts.net` + custom domain |
+| `backup`       | `restic/restic`                    | no web UI — a one-shot on a systemd timer  |
 
 Each project is a directory with a `compose.yaml`, a `Caddyfile`, and an
 `.env.example`. Copy `.env.example` to `.env` (gitignored) and fill it in —
@@ -119,6 +120,127 @@ app may have migrated its own database/config in the volume on first start
 (qBittorrent does this), and those migrations are not always reversible. Read
 the release notes before a major bump; snapshot the `config` volume first if
 it's one you can't recreate.
+
+## Backups
+
+`backup/` snapshots every Docker volume worth keeping, plus this repo's
+gitignored `.env` files, into a [restic](https://restic.net/) repository. It is
+a one-shot, not a long-running service:
+
+```sh
+cd backup
+cp .env.example .env      # then edit — see the password warning below
+docker compose run --rm backup
+```
+
+**The repository is plain restic on purpose.** Nothing in this directory is
+needed to read it back: a restore needs only the `restic` binary, so a broken
+Docker install is not also a lost backup. That is the whole reason the
+container is confined to *scheduling and orchestration*.
+
+### What is in it
+
+Every named volume is included **by default** and exclusions are explicit, so a
+service added later is protected without anyone remembering to update a list.
+Anonymous volumes (64 hex characters, left behind by builds) are always
+skipped. `EXCLUDE_VOLUMES` drops the rest that rebuild themselves:
+
+- `jellyfin_cache` and the caddy cert/config volumes — regenerated on demand.
+- `monitoring_*_data` — the observability stores. Prometheus metrics, Loki
+  logs, Alloy's WAL and Grafana's own database. None of it is worth restoring:
+  the dashboards, datasources and alert rules are provisioned from this repo
+  and therefore already captured via `/config`, Grafana's 53 MB is mostly
+  re-downloadable plugins, and metrics history from before a disaster has
+  little value after it. The glob deliberately does not match
+  `monitoring_tailscale_state`, which is node identity worth keeping.
+
+That leaves 8 volumes and ~170 MiB, dominated by `jellyfin_config` — watch
+history and library metadata, the one thing here that is genuinely painful to
+rebuild. Small enough to run nightly without thinking about it.
+
+`..` is mounted at `/config` so the `.env` files come along. They are gitignored
+and exist nowhere else, so without them a rebuild means reissuing every
+Tailscale auth key and Cloudflare token.
+
+### The password
+
+`RESTIC_PASSWORD` in `backup/.env` is the single most important value here.
+Restic has **no recovery path** — lose it and every snapshot is permanently
+unreadable. Put a copy in a password manager before the first run.
+
+Note that `backup/.env` is itself inside the backup, which is a convenience for
+a partial restore and **not** a recovery path: you need the password to decrypt
+the repository that contains the password.
+
+### Consistency caveat
+
+Volumes are copied hot, with nothing stopped. For plain files that is fine.
+`jellyfin.db` is SQLite, so a snapshot taken mid-write may not open cleanly —
+which is why retention keeps 7 dailies rather than relying on the newest one.
+In practice the 03:30 window is when nothing is streaming.
+
+If you want a guaranteed-consistent copy, `backup/systemd/docker-backup.service`
+carries commented-out `ExecStartPre`/`ExecStartPost` lines that stop and start
+Jellyfin around the run. It costs a few seconds of downtime at 03:30 and is
+off by default because it interrupts anyone still watching.
+
+Grafana used to be the other hot-SQLite case; it is now excluded entirely for
+the reasons above. Restoring onto a fresh Grafana reprovisions the dashboards,
+datasources and alert rules from this repo, and the admin password comes from
+the backed-up `monitoring/.env` — so the rebuilt state is complete.
+
+### Scheduling
+
+The systemd units are version-controlled in `backup/systemd/` and installed by
+symlink, so edits stay tracked:
+
+```sh
+sudo systemctl enable --now \
+  /home/kyleyan/Developer/Services/backup/systemd/docker-backup.timer
+systemctl list-timers docker-backup.timer
+```
+
+Nightly at 03:30 with `Persistent=true`, so a run missed while the host was off
+happens at the next boot rather than being skipped. Failures POST to the same
+ntfy topic the Grafana alerts use — set `NTFY_URL` in `backup/.env`, because a
+backup that fails silently is the same as no backup.
+
+This runs **alongside** the host's existing `restic-backup.timer` (Sun 03:00,
+repo at `/mnt/data/restic`) and writes to a separate repository at
+`/mnt/data/restic-docker`. Retire the old one once you have restored from this
+one and are satisfied.
+
+### Restoring
+
+Inspect and restore with the host's `restic` — no Docker involved:
+
+```sh
+sudo restic -r /mnt/data/restic-docker snapshots
+sudo restic -r /mnt/data/restic-docker restore latest --target /tmp/restore
+
+# or a single volume
+sudo restic -r /mnt/data/restic-docker restore latest \
+  --target /tmp/restore --include /volumes/jellyfin_config/_data
+```
+
+Then stop the service, replace the volume contents, and start it again. Paths
+inside a snapshot are `/volumes/<volume-name>/_data/...` and `/config/...`.
+
+### Adding an offsite copy
+
+`/mnt/data` is a disk in the same machine, so it does not survive a drive
+failure or a bad `docker volume prune`. The script already loops over targets —
+set these in `backup/.env` and the next run writes both:
+
+```sh
+RESTIC_REPOSITORY_OFFSITE=s3:https://<account-id>.r2.cloudflarestorage.com/<bucket>
+AWS_ACCESS_KEY_ID=<r2 access key id>
+AWS_SECRET_ACCESS_KEY=<r2 secret access key>
+```
+
+An R2 bucket plus an API token with **Object Read & Write** is all it needs. At
+~320 MiB with deduplication, it costs essentially nothing, and the same
+`RESTIC_PASSWORD` encrypts both targets.
 
 ## Jellyfin notes
 
