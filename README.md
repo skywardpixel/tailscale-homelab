@@ -7,8 +7,8 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 
 | Project        | Image                              | Reachable at                              |
 |----------------|------------------------------------|-------------------------------------------|
-| `animegakill`  | `ghcr.io/skywardpixel/animegakill` | no web UI — driven by `config.yaml`       |
-| `autobangumi`  | `ghcr.io/estrellaxd/auto_bangumi`  | retired — replaced by `animegakill`       |
+| `autobangumi`  | `ghcr.io/estrellaxd/auto_bangumi`  | `<host>.<tailnet>.ts.net` + custom domain |
+| `animegakill`  | `ghcr.io/skywardpixel/animegakill` | retired — replaced by `autobangumi`       |
 | `jellyfin`     | `jellyfin/jellyfin`                | `<host>.<tailnet>.ts.net` + custom domain |
 | `qbittorrent`  | `lscr.io/linuxserver/qbittorrent`  | `<host>.<tailnet>.ts.net` + custom domain |
 | `monitoring`   | Grafana + Prometheus + Loki + Alloy | `<host>.<tailnet>.ts.net` + custom domain |
@@ -16,9 +16,6 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 Each project is a directory with a `compose.yaml`, a `Caddyfile`, and an
 `.env.example`. Copy `.env.example` to `.env` (gitignored) and fill it in —
 `docker compose` reads `.env` automatically. No secrets are committed.
-
-`animegakill` is the one exception: it has no web UI, so it has no `Caddyfile`
-and no `caddy`/`dns-sync` sidecars — just the app on the `downloads` network.
 
 ## How the Caddy + Tailscale front works
 
@@ -181,81 +178,30 @@ BitTorrent peer port
 (`BT_PORT`, default 6881) is the one port published to the host — peer data
 transfer, not a management UI.
 
-## animegakill
+## animegakill (retired)
 
-A second, lighter take on the same job as AutoBangumi: watch anime RSS feeds,
-hand new episodes to qBittorrent, rename the files in place so Jellyfin reads
-them. The difference is that **every feed lives in `animegakill/config.yaml`**,
-tracked in this repo, instead of in a web UI backed by a mutable database.
+`animegakill/` was a lighter, config-file-driven alternative to AutoBangumi:
+every feed lived in `animegakill/config.yaml`, tracked in this repo, instead of
+in a web UI backed by a mutable database. It ran here for one evening.
 
-Source and image: [skywardpixel/AnimeGaKill](https://github.com/skywardpixel/AnimeGaKill).
+It is stopped, and AutoBangumi is the live stack again. The directory is left
+in the tree with its `animegakill_data` volume intact, but note that the image
+it references may no longer be published — check before `up -d`.
 
-It is deliberately smaller than the other projects here:
+What sent it back: identity was `(feed, RSS guid)` held in a SQLite file, not
+`(show, season, episode)`. That state was invisible from the CLI, only ever
+appended to, and never reconciled against the disk or qBittorrent — so a
+deleted episode could never be re-fetched, and the same episode from two feeds
+would download twice. Fixing it properly meant rebuilding identity around a
+disk inventory. AutoBangumi already works.
 
-- **No web UI**, so no `Caddyfile`, no `caddy`, no `dns-sync`, and no
-  Tailscale block in `.env`. `docker compose logs` is the whole interface.
-- **No credentials needed.** It sits on the `downloads` network, which
-  qBittorrent's WebUI auth-subnet whitelist bypasses, and it only logs in if
-  the server actually returns a 403. `QB_PASS` stays empty.
-- **No media mount and no PUID/PGID.** It never touches the files — it calls
-  qBittorrent's API and writes one sqlite file — so it runs `read_only`, with
-  `cap_drop: ALL`, as a non-root user.
+Two things worth knowing if any second downloader is ever run alongside:
 
-```sh
-cd animegakill
-cp .env.example .env               # DOWNLOADS_DIR + TZ; the rest stays empty
-cp config.example.yaml config.yaml # gitignored; add your feeds here
-
-docker compose run --rm animegakill feeds   # what each entry parses/filters to
-docker compose run --rm animegakill -n once # dry run: what a pass would do
-docker compose up -d
-```
-
-### Editing feeds
-
-`config.yaml` is the service. It is **gitignored** — a subscription list is
-personal and this repo is public — so `config.example.yaml` is committed as the
-template, the same way `.env.example` is. It carries no secrets either:
-`${QB_PASS}`, `${MIKAN_TOKEN}` and `${DOWNLOADS_DIR}` are expanded from `.env`
-at load time.
-
-```sh
-$EDITOR animegakill/config.yaml
-docker compose run --rm animegakill feeds    # verify before applying
-docker compose restart animegakill
-```
-
-After adding a show, seed it so the back catalogue is not re-downloaded on top
-of episodes you already have:
-
-```sh
-docker compose run --rm animegakill mark-seen -f "<feed name>"
-```
-
-`feeds` prints one line per entry with the verdict — `+` would download,
-`-` filtered by a rule (and which one), `?` unparsable — which is the fastest
-way to catch a wrong `include:` or a season/offset mistake before it downloads
-anything. `config.yaml` itself is validated on start; a typo fails the
-container's healthcheck rather than being silently ignored.
-
-Set `skip_backlog: true` (the default here) when adding a mid-season show so it
-picks up from the next episode instead of queueing the whole season.
-
-### Migrated from AutoBangumi
-
-`autobangumi/` is retired (`docker compose down`) — its four subscriptions now
-live in `animegakill/config.yaml`. Its volumes are untouched, so bringing it
-back is one `docker compose up -d`.
-
-Two things that bit during the migration, worth knowing if you ever run both
-again:
-
-- **Use a different qBittorrent category.** animegakill uses `AnimeGaKill`;
-  AutoBangumi used `Bangumi`. The renamer selects torrents *by category*, so
+- **Use a different qBittorrent category.** AutoBangumi manages `Bangumi`.
+  animegakill used `AnimeGaKill`. Renamers select torrents *by category*, so
   sharing one means each tool renames the other's downloads.
-- **Seed state before the first real run.** Without `mark-seen`, a newly
-  migrated feed looks entirely new and re-downloads the whole back catalogue on
-  top of files you already have.
+- **Seed state before the first real run**, or a migrated feed looks entirely
+  new and re-downloads the back catalogue on top of files already on disk.
 
 ## Monitoring
 
