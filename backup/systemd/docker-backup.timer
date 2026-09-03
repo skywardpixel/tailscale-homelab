@@ -1,0 +1,14 @@
+# Nightly at 03:30. The host's existing restic-backup.timer runs Sun 03:00;
+# these stay clear of each other while both are in service.
+
+[Unit]
+Description=Run the containerized restic backup nightly
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# Catches up after the host has been off, rather than skipping the window.
+Persistent=true
+RandomizedDelaySec=20m
+
+[Install]
+WantedBy=timers.target
