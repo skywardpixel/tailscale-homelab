@@ -43,6 +43,17 @@ prometheus.scrape "infra" {
 	forward_to      = [prometheus.remote_write.default.receiver]
 }
 
+// Application-level metrics: qBittorrent transfer/torrent state and Jellyfin
+// playback. Separate from "infra" because these describe what the services are
+// doing rather than the machine they run on.
+prometheus.scrape "media" {
+	targets = [
+		{ "__address__" = "media-exporter:9101", "job" = "media" },
+	]
+	scrape_interval = "30s"
+	forward_to      = [prometheus.remote_write.default.receiver]
+}
+
 prometheus.remote_write "default" {
 	endpoint {
 		url = "http://prometheus:9090/api/v1/write"

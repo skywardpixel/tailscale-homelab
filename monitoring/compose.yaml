@@ -114,6 +114,32 @@ services:
     volumes:
       - /dev:/dev:ro
 
+  # Application-level metrics for the media pipeline: what qBittorrent is
+  # moving and what Jellyfin is streaming. Everything else here watches the
+  # host and the containers; this watches what they're actually doing.
+  #
+  # Reaches qBittorrent over the shared `downloads` network, where the WebUI
+  # auth-subnet whitelist means no credentials are needed, and Jellyfin over
+  # the shared `media` network (that one does need an API key — set
+  # JELLYFIN_API_KEY, or leave it empty and Jellyfin metrics are skipped).
+  media-exporter:
+    build:
+      context: ../_media-exporter
+    image: services/media-exporter:local
+    container_name: media_exporter
+    restart: unless-stopped
+    environment:
+      QBIT_URL: ${QBIT_URL:-http://qbittorrent:8080}
+      QBIT_USERNAME: ${QBIT_USERNAME:-}
+      QBIT_PASSWORD: ${QBIT_PASSWORD:-}
+      JELLYFIN_URL: ${JELLYFIN_URL:-http://jellyfin:8096}
+      JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:-}
+    networks:
+      - default    # Alloy scrapes it here
+      - downloads  # qBittorrent API
+      - media      # Jellyfin API
+    # No published port: Alloy scrapes it on the compose network.
+
   caddy:
     build:
       context: ../_caddy-tailscale
@@ -146,6 +172,17 @@ services:
       TAILNET_NAME: ${TAILNET_NAME}
       CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
       CF_API_TOKEN: ${CF_API_TOKEN}
+
+networks:
+  # Shared with the qbittorrent/autobangumi projects — the exporter reaches
+  # the qBittorrent API on this one. Created by hand:
+  #   docker network create --subnet 172.28.0.0/16 downloads
+  downloads:
+    external: true
+  # Shared with the jellyfin project, for the exporter's Jellyfin scrape:
+  #   docker network create media
+  media:
+    external: true
 
 volumes:
   grafana_data:

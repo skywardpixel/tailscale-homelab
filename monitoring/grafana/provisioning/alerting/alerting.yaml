@@ -424,3 +424,207 @@ groups:
               expression: A
               conditions:
                 - evaluator: { type: gt, params: [15] }
+
+  # Application-level alerts, fed by the media-exporter (job="media"). Each one
+  # uses noDataState: OK so a missing exporter stays the "Metrics source down"
+  # alert's job rather than firing twice — and so the Jellyfin rules stay quiet
+  # when no JELLYFIN_API_KEY is set and those series never appear.
+  - orgId: 1
+    name: media
+    folder: Homelab
+    interval: 1m
+    rules:
+      - uid: qbittorrent_api_down
+        title: qBittorrent API unreachable
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: warning
+        annotations:
+          summary: The media-exporter cannot reach the qBittorrent WebUI API
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'qbittorrent_up'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: qbittorrent_disconnected
+        title: qBittorrent not connected to peers
+        condition: C
+        for: 20m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: qBittorrent reports a firewalled/disconnected BitTorrent session — check the forwarded peer port
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'qbittorrent_connected'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: qbittorrent_disk_low
+        title: Downloads disk almost full
+        condition: C
+        for: 15m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Only {{ printf "%.1f" $values.B.Value }} GiB left on the qBittorrent save path'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'qbittorrent_free_space_bytes'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: math
+              expression: '$A / 1024 / 1024 / 1024'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [50] }
+
+      - uid: qbittorrent_stalled_downloads
+        title: Downloads stalled
+        condition: C
+        for: 2h
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ printf "%.0f" $values.A.Value }} torrent(s) have been stalled for 2h — dead tracker or no seeds'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'qbittorrent_torrents_grouped{group="stalled"}'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: qbittorrent_torrent_errors
+        title: Torrents in error state
+        condition: C
+        for: 15m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ printf "%.0f" $values.A.Value }} torrent(s) errored — missing files, or the save path went away'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'qbittorrent_torrents_grouped{group="error"}'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: jellyfin_api_down
+        title: Jellyfin API unreachable
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: The media-exporter cannot reach the Jellyfin API — server down, or the API key was revoked
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'jellyfin_up'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: jellyfin_transcode_saturation
+        title: Too many simultaneous transcodes
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ printf "%.0f" $values.A.Value }} streams transcoding at once — the RTX 2070 caps out around 3-4'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'jellyfin_transcoding_streams'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [3] }

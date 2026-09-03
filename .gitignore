@@ -10,3 +10,6 @@ compose.override.yml
 .DS_Store
 *.swp
 *~
+
+# Python bytecode from local linting/compiling
+__pycache__/
