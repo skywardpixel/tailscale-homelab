@@ -11,7 +11,7 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 | `jellyfin`     | `jellyfin/jellyfin`                | `<host>.<tailnet>.ts.net` + custom domain |
 | `qbittorrent`  | `lscr.io/linuxserver/qbittorrent`  | `<host>.<tailnet>.ts.net` + custom domain |
 | `monitoring`   | Grafana + Prometheus + Loki + Alloy | `<host>.<tailnet>.ts.net` + custom domain |
-| `backup`       | `restic/restic`                    | no web UI — a one-shot on a systemd timer  |
+| `backup`       | `restic/restic`                    | no web UI — self-scheduling restic backup |
 
 Each project is a directory with a `compose.yaml`, a `Caddyfile`, and an
 `.env.example`. Copy `.env.example` to `.env` (gitignored) and fill it in —
@@ -124,13 +124,20 @@ it's one you can't recreate.
 ## Backups
 
 `backup/` snapshots every Docker volume worth keeping, plus this repo's
-gitignored `.env` files, into a [restic](https://restic.net/) repository. It is
-a one-shot, not a long-running service:
+gitignored `.env` files, into a [restic](https://restic.net/) repository. It
+schedules itself, so it comes up like every other project here:
 
 ```sh
 cd backup
 cp .env.example .env      # then edit — see the password warning below
-docker compose run --rm backup
+docker compose up -d
+docker compose logs -f backup
+```
+
+To run one immediately without waiting for the schedule:
+
+```sh
+docker compose exec backup /usr/local/bin/run-backup.sh
 ```
 
 **The repository is plain restic on purpose.** Nothing in this directory is
@@ -146,6 +153,7 @@ Anonymous volumes (64 hex characters, left behind by builds) are always
 skipped. `EXCLUDE_VOLUMES` drops the rest that rebuild themselves:
 
 - `jellyfin_cache` and the caddy cert/config volumes — regenerated on demand.
+- `backup_state` — this project's own last-success timestamp.
 - `monitoring_*_data` — the observability stores. Prometheus metrics, Loki
   logs, Alloy's WAL and Grafana's own database. None of it is worth restoring:
   the dashboards, datasources and alert rules are provisioned from this repo
@@ -191,19 +199,27 @@ the backed-up `monitoring/.env` — so the rebuilt state is complete.
 
 ### Scheduling
 
-The systemd units are version-controlled in `backup/systemd/` and installed by
-symlink, so edits stay tracked:
+The container runs busybox cron on `BACKUP_SCHEDULE` (default `30 3 * * *`, in
+`TZ`), so there is no host unit to install and no root needed. Three pieces
+cover what an external timer would otherwise provide:
 
-```sh
-sudo systemctl enable --now \
-  /home/kyleyan/Developer/Services/backup/systemd/docker-backup.timer
-systemctl list-timers docker-backup.timer
-```
+- **Catch-up.** On start, if the last success is older than
+  `CATCHUP_AFTER_HOURS` (default 26), it backs up immediately instead of
+  waiting for the next slot. That is systemd's `Persistent=true`, for a host
+  that was powered off.
+- **Staleness healthcheck.** The container reports unhealthy once nothing has
+  succeeded within `STALE_AFTER_HOURS` (default 48). A systemd timer gives you
+  no equivalent, and "backups quietly stopped weeks ago" is a far more common
+  failure than a single missed window. `docker ps` shows it, and the monitoring
+  stack sees it like any other unhealthy container.
+- **Overlap protection.** Runs take an exclusive `flock`, so a slow run never
+  has a second started on top of it — the later trigger steps aside.
 
-Nightly at 03:30 with `Persistent=true`, so a run missed while the host was off
-happens at the next boot rather than being skipped. Failures POST to the same
-ntfy topic the Grafana alerts use — set `NTFY_URL` in `backup/.env`, because a
-backup that fails silently is the same as no backup.
+Failures POST to the same ntfy topic the Grafana alerts use — set `NTFY_URL` in
+`backup/.env`, because a backup that fails silently is the same as no backup.
+
+`backup/systemd/` still holds timer units for hosts that would rather schedule
+this externally; they are a documented fallback, not part of the normal setup.
 
 This runs **alongside** the host's existing `restic-backup.timer` (Sun 03:00,
 repo at `/mnt/data/restic`) and writes to a separate repository at

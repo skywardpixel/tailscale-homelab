@@ -1,14 +1,20 @@
-# Nightly containerized restic backup.
+# FALLBACK ONLY — not needed in the normal setup.
 #
-# Install (as root):
-#   systemctl enable --now /home/kyleyan/Developer/Services/backup/systemd/docker-backup.timer
+# The backup container schedules itself (busybox cron, plus startup catch-up
+# and a staleness healthcheck), so `docker compose up -d` is all that is
+# required. These units exist for hosts where a long-lived container is
+# unwanted and an external scheduler is preferred instead.
 #
-# `systemctl enable` on a path symlinks the unit, so edits here take effect
-# after `systemctl daemon-reload` — the unit file stays version-controlled.
-# Adjust WorkingDirectory if the repo lives somewhere else.
+# To use them, set CATCHUP_ON_START=false and BACKUP_SCHEDULE to something that
+# never fires in backup/.env, or simply do not start the compose service, then:
+#   sudo systemctl enable --now \
+#     /home/kyleyan/Developer/Services/backup/systemd/docker-backup.timer
+#
+# Adjust WorkingDirectory if the repo lives elsewhere — this path is the reason
+# the container-native scheduler is the default.
 
 [Unit]
-Description=Containerized restic backup of Docker volumes
+Description=Containerized restic backup of Docker volumes (fallback scheduler)
 Documentation=https://github.com/skywardpixel/tailscale-homelab
 Requires=docker.service
 After=docker.service network-online.target
@@ -16,14 +22,12 @@ After=docker.service network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/home/kyleyan/Developer/Services/backup
-ExecStart=/usr/bin/docker compose run --rm backup
+# Override the entrypoint so this runs one backup and exits, rather than
+# starting the in-container scheduler.
+ExecStart=/usr/bin/docker compose run --rm --entrypoint /usr/local/bin/run-backup.sh backup
 
-# Backups are never urgent enough to compete with a Jellyfin transcode.
+# run-backup.sh already applies nice/ionice inside the container; these cover
+# the docker client itself.
 Nice=10
 IOSchedulingClass=idle
 TimeoutStartSec=2h
-
-# For a fully quiesced backup, stop the services first. Left commented out:
-# with ~250 MB the run takes seconds, but it still interrupts anyone watching.
-# ExecStartPre=/usr/bin/docker compose -f /home/kyleyan/Developer/Services/jellyfin/compose.yaml stop jellyfin
-# ExecStartPost=/usr/bin/docker compose -f /home/kyleyan/Developer/Services/jellyfin/compose.yaml start jellyfin
