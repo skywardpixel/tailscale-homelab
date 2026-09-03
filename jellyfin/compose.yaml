@@ -22,8 +22,12 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    networks:
+      - default
+      - media
     # No published port: reached only through the caddy service below, over
-    # the tailnet.
+    # the tailnet. The `media` network is internal-only, for the monitoring
+    # project's media-exporter to scrape /Sessions.
 
   caddy:
     build:
@@ -58,6 +62,13 @@ services:
       TAILNET_NAME: ${TAILNET_NAME}
       CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
       CF_API_TOKEN: ${CF_API_TOKEN}
+
+networks:
+  # Shared with the monitoring project so media-exporter can call the Jellyfin
+  # API over the compose network. Create it once with:
+  #   docker network create media
+  media:
+    external: true
 
 volumes:
   config:
