@@ -177,30 +177,6 @@ BitTorrent peer port
 (`BT_PORT`, default 6881) is the one port published to the host — peer data
 transfer, not a management UI.
 
-## A note on animegakill
-
-For one evening this host ran `animegakill` instead of AutoBangumi: a lighter,
-config-file-driven downloader whose feeds lived in a `config.yaml` tracked in
-this repo rather than in a web UI backed by a mutable database. It is gone —
-directory, image, volume and upstream repo — and AutoBangumi never stopped
-being the tool that actually works.
-
-Recorded here because the reason generalises. It identified an episode by
-`(feed, RSS guid)` in a SQLite file rather than by `(show, season, episode)`.
-That state could not be read from the CLI, was only ever appended to, and was
-never reconciled against the disk or qBittorrent -- so a deleted episode could
-never be re-fetched, and one episode carried by two feeds downloaded twice.
-Fixing it properly meant rebuilding identity around an inventory of what is on
-disk. Worth checking for in anything that replaces AutoBangumi later.
-
-If a second downloader is ever run alongside it, two things bite:
-
-- **Use a different qBittorrent category.** AutoBangumi manages `Bangumi`.
-  Renamers select torrents *by category*, so sharing one means each tool
-  renames the other's downloads.
-- **Seed its state before the first real run**, or a migrated feed looks
-  entirely new and re-downloads the back catalogue over files already on disk.
-
 ## Monitoring
 
 `monitoring/` covers the whole host and every Docker project. Grafana is the

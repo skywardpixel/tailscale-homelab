@@ -2,9 +2,6 @@
 .env
 !*/.env.example
 
-# Personal subscription list. config.example.yaml is committed instead.
-animegakill/config.yaml
-
 # Local compose tweaks (image overrides, debug ports) — host-specific.
 compose.override.yaml
 compose.override.yml
