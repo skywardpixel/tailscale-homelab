@@ -264,61 +264,46 @@ An R2 bucket plus an API token with **Object Read & Write** is all it needs. At
 
 ## Audiobookshelf notes
 
-Two host paths, mounted with deliberately different permissions:
+One host path, mounted read-only:
 
 - `AUDIOBOOKS_DIR` → `/audiobooks`, **read-only**. Audiobookshelf keeps cover
   art and its scan results in the `metadata` volume, so it never needs to
   write into the library. Drop the `:ro` if you want the web uploader, or
   *Settings → Item Metadata Utils → "Store metadata with item"*, which moves
   those files out of `/metadata/items` and into the library folders.
-- `PODCASTS_DIR` → `/podcasts`, **read-write**. This one has to be writable:
-  Audiobookshelf downloads episodes into it itself.
+- `PODCASTS_DIR` — **removed.** Audiobookshelf writes podcast episodes into
+  its podcast folder, which would be the only writable host path here. With no
+  podcast library in use, the mount was dead weight and has been dropped.
 
-Create both before the first `up` — Docker auto-creates a missing bind-mount
-source as `root:root`, which you then cannot write to without `sudo`:
-
-```sh
-sudo mkdir -p /mnt/downloads/audiobooks /mnt/downloads/podcasts
-sudo chown "$USER":"$USER"          /mnt/downloads/audiobooks
-sudo chown "$USER":audiobookshelf   /mnt/downloads/podcasts
-sudo chmod 2775                     /mnt/downloads/podcasts
-```
-
-Add both as library folders (`/audiobooks`, `/podcasts`) in the first-run
-wizard, as separate libraries — Audiobookshelf's podcast and book libraries
-behave differently.
-
-### Why it runs as its own user
-
-Upstream ships no `PUID`/`PGID` — the image simply runs as root. Left alone
-that means container root writing podcast episodes onto `/mnt/downloads`,
-which is ext4 mounted `rw,relatime` (no `nosuid`), so a compromise of the app
-could drop a setuid binary on a disk every host user can read. It also makes
-the episodes annoying to manage from a shell.
-
-So this project does what the `anime` group does for qBittorrent, just from
-the compose file instead of the image. Create the account once:
+Create the audiobooks directory before the first `up` — Docker auto-creates a
+missing bind-mount source as `root:root`, which you then cannot write to
+without `sudo`:
 
 ```sh
-sudo groupadd -g 113 audiobookshelf
-sudo useradd -u 113 -g 113 -r -s /usr/sbin/nologin -M audiobookshelf
-sudo usermod -aG audiobookshelf "$USER"   # log out and back in to pick it up
+sudo mkdir -p /mnt/downloads/audiobooks
+sudo chown "$USER":"$USER" /mnt/downloads/audiobooks
 ```
 
-`compose.yaml` then sets `user: "${PUID}:${PGID}"` from `.env`. The app itself
-is happy as any uid — but a **freshly created named volume is `root:root`
-`0755`**, and non-root Audiobookshelf dies on it with `EACCES: mkdir
-'/metadata/logs'`. That is what the one-shot `init` service exists for: it runs
-as root, chowns `config` and `metadata`, and exits. It reuses the app's own
-image so there is nothing extra to pin, and it only recurses when the
-top-level owner is actually wrong, so every start after the first is a single
-`stat`.
+### Why it runs as the image's default user
 
-Episodes land `113:113` with mode 644 (Node's umask is 022 and Audiobookshelf
-has no `UMASK` setting, so unlike qBittorrent's `002` they are not
-group-writable). With the setgid bit on the directory, other members of the
-`audiobookshelf` group can still add, delete and rename files there — just not
-edit one in place without `sudo`.
+It didn't always. An earlier version ran the app as a dedicated `audiobookshelf`
+uid, with a one-shot `init` service to chown the named volumes first — because
+a freshly created volume is `root:root 0755` and non-root Audiobookshelf dies
+on it with `EACCES: mkdir '/metadata/logs'`.
+
+That whole apparatus existed for one reason: container root writing podcast
+episodes onto `/mnt/downloads`, which is ext4 mounted without `nosuid`. Since
+no podcast library is in use, that mount is gone, and with it the only writable
+host path — the library itself is `:ro`, and everything else the app writes
+lands in its own Docker volumes. So the `user:` override and the `init` service
+were both removed as machinery guarding a risk that no longer exists.
+
+**Bring it back if either of these changes:** you add a podcast library, or you
+make `AUDIOBOOKS_DIR` read-write for the web uploader. Both reintroduce a
+writable host path. The removed setup is in the git history — see the commit
+that added it, and the one that took it out.
+
+Add `/audiobooks` as the library folder in the first-run wizard.
 
 Two Docker-managed volumes, and the split matters for restores:
 
@@ -336,10 +321,13 @@ Nothing extra is needed in the Caddyfile — Caddy passes Audiobookshelf's
 socket.io connection through as a normal WebSocket upgrade, and puts no limit
 on request bodies, so large uploads work if you make the library writable.
 
-**On a phone**, the mobile apps reach `${CUSTOM_DOMAIN}` only while the
-Tailscale app is connected — the name resolves through MagicDNS and the
-address is tailnet-only. Downloading books to the device for offline playback
-is the way around that, not a public listener.
+**On a phone**, note there is no official Audiobookshelf iOS app — the
+official app is Android-only. On iOS the usable clients are third-party:
+SoundLeaf (offline downloads free in its base tier) and Plappa (downloads
+behind a one-time purchase). Whichever you use, it reaches `${CUSTOM_DOMAIN}`
+only while the Tailscale app is connected, since the name resolves through
+MagicDNS and the address is tailnet-only. Downloading books to the device for
+offline playback is the way around that, not a public listener.
 
 ## Samba shares
 
