@@ -341,6 +341,47 @@ Tailscale app is connected — the name resolves through MagicDNS and the
 address is tailnet-only. Downloading books to the device for offline playback
 is the way around that, not a public listener.
 
+## Samba shares
+
+Not part of this repo's compose projects: `smbd`/`nmbd` run on the host
+(Debian's `samba` package) and the shares live in `/etc/samba/smb.conf`. They
+are recorded here because that file is **not** covered by the backup — which
+snapshots Docker volumes and this repo, not `/etc`.
+
+| Share        | Path                        | Access                         |
+|--------------|-----------------------------|--------------------------------|
+| `anime`      | `/mnt/downloads/anime`      | read-only, `kyleyan` can write |
+| `tvshows`    | `/mnt/downloads/tv-shows`   | read-only, `kyleyan` can write |
+| `audiobooks` | `/mnt/downloads/audiobooks` | read-only, `kyleyan` can write |
+
+`audiobooks` is how books actually get onto the server: Audiobookshelf mounts
+that directory `:ro`, so the web uploader is not the path in. Each share
+follows the same shape:
+
+```ini
+[audiobooks]
+   comment = Audiobooks
+   path = /mnt/downloads/audiobooks
+   browseable = yes
+   read only = yes
+   guest ok = no
+   write list = kyleyan
+```
+
+Apply a change with `sudo testparm -s` first, then
+`sudo systemctl reload smbd`. A share needs a Samba password separate from the
+Unix one — `sudo smbpasswd -a kyleyan` if it was never set.
+
+**These shares are reachable from the LAN, not just the tailnet** — `smbd`
+binds `0.0.0.0:445`, unlike every compose project here. That is a deliberate
+difference if you mount them from a device that isn't on the tailnet; to close
+it, add to `[global]` and reload:
+
+```ini
+   interfaces = lo tailscale0
+   bind interfaces only = yes
+```
+
 ## Jellyfin notes
 
 `MEDIA_DIR` (host path) is mounted read-only at `/media`; point libraries at
