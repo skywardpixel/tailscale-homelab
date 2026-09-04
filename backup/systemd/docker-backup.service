@@ -6,12 +6,10 @@
 # unwanted and an external scheduler is preferred instead.
 #
 # To use them, set CATCHUP_ON_START=false and BACKUP_SCHEDULE to something that
-# never fires in backup/.env, or simply do not start the compose service, then:
-#   sudo systemctl enable --now \
-#     /home/kyleyan/Developer/Services/backup/systemd/docker-backup.timer
-#
-# Adjust WorkingDirectory if the repo lives elsewhere — this path is the reason
-# the container-native scheduler is the default.
+# never fires in backup/.env, or simply do not start the compose service. Then,
+# from the backup directory:
+#   sudo systemctl link "$PWD/systemd/docker-backup.service"
+#   sudo systemctl enable --now "$PWD/systemd/docker-backup.timer"
 
 [Unit]
 Description=Containerized restic backup of Docker volumes (fallback scheduler)
@@ -21,10 +19,11 @@ After=docker.service network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/kyleyan/Developer/Services/backup
-# Override the entrypoint so this runs one backup and exits, rather than
-# starting the in-container scheduler.
-ExecStart=/usr/bin/docker compose run --rm --entrypoint /usr/local/bin/run-backup.sh backup
+# %Y is the directory containing this unit's real source file, including when
+# linked into systemd's unit search path. Change to the Compose project one
+# level up, then replace the shell with Docker. Passing %Y as $1 keeps paths
+# containing spaces intact.
+ExecStart=/bin/sh -c 'cd "$1/.." && exec /usr/bin/docker compose run --rm --entrypoint /usr/local/bin/run-backup.sh backup' sh %Y
 
 # run-backup.sh already applies nice/ionice inside the container; these cover
 # the docker client itself.
