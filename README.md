@@ -272,13 +272,53 @@ Two host paths, mounted with deliberately different permissions:
   *Settings → Item Metadata Utils → "Store metadata with item"*, which moves
   those files out of `/metadata/items` and into the library folders.
 - `PODCASTS_DIR` → `/podcasts`, **read-write**. This one has to be writable:
-  Audiobookshelf downloads episodes into it itself. The upstream image runs as
-  root and has no `PUID`/`PGID`, so those episodes land root-owned — unlike
-  qBittorrent's downloads, which are written as `PUID:PGID`.
+  Audiobookshelf downloads episodes into it itself.
+
+Create both before the first `up` — Docker auto-creates a missing bind-mount
+source as `root:root`, which you then cannot write to without `sudo`:
+
+```sh
+sudo mkdir -p /mnt/downloads/audiobooks /mnt/downloads/podcasts
+sudo chown "$USER":"$USER"          /mnt/downloads/audiobooks
+sudo chown "$USER":audiobookshelf   /mnt/downloads/podcasts
+sudo chmod 2775                     /mnt/downloads/podcasts
+```
 
 Add both as library folders (`/audiobooks`, `/podcasts`) in the first-run
 wizard, as separate libraries — Audiobookshelf's podcast and book libraries
 behave differently.
+
+### Why it runs as its own user
+
+Upstream ships no `PUID`/`PGID` — the image simply runs as root. Left alone
+that means container root writing podcast episodes onto `/mnt/downloads`,
+which is ext4 mounted `rw,relatime` (no `nosuid`), so a compromise of the app
+could drop a setuid binary on a disk every host user can read. It also makes
+the episodes annoying to manage from a shell.
+
+So this project does what the `anime` group does for qBittorrent, just from
+the compose file instead of the image. Create the account once:
+
+```sh
+sudo groupadd -g 113 audiobookshelf
+sudo useradd -u 113 -g 113 -r -s /usr/sbin/nologin -M audiobookshelf
+sudo usermod -aG audiobookshelf "$USER"   # log out and back in to pick it up
+```
+
+`compose.yaml` then sets `user: "${PUID}:${PGID}"` from `.env`. The app itself
+is happy as any uid — but a **freshly created named volume is `root:root`
+`0755`**, and non-root Audiobookshelf dies on it with `EACCES: mkdir
+'/metadata/logs'`. That is what the one-shot `init` service exists for: it runs
+as root, chowns `config` and `metadata`, and exits. It reuses the app's own
+image so there is nothing extra to pin, and it only recurses when the
+top-level owner is actually wrong, so every start after the first is a single
+`stat`.
+
+Episodes land `113:113` with mode 644 (Node's umask is 022 and Audiobookshelf
+has no `UMASK` setting, so unlike qBittorrent's `002` they are not
+group-writable). With the setgid bit on the directory, other members of the
+`audiobookshelf` group can still add, delete and rename files there — just not
+edit one in place without `sudo`.
 
 Two Docker-managed volumes, and the split matters for restores:
 

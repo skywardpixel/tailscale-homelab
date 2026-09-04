@@ -5,10 +5,45 @@ name: audiobookshelf
 # and a dns-sync one-shot for the CNAME.
 
 services:
+  # One-shot: a freshly created named volume is root:root 0755, which the
+  # non-root app below cannot write — it dies with `EACCES: mkdir
+  # '/metadata/logs'`. Doing the chown here rather than in a README step means
+  # a rebuild on a new host needs nothing remembered.
+  #
+  # Deliberately the same image as the app: nothing extra to pull or pin, and
+  # it is guaranteed to already be present. It only recurses when the
+  # top-level owner is actually wrong, so every start after the first is a
+  # single stat.
+  init:
+    image: ghcr.io/advplyr/audiobookshelf:2.36.0
+    container_name: Audiobookshelf_init
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        for d in /config /metadata; do
+          if [ "$$(stat -c %u "$$d")" != "${PUID:-113}" ]; then
+            echo "init: chown -R ${PUID:-113}:${PGID:-113} $$d"
+            chown -R "${PUID:-113}:${PGID:-113}" "$$d"
+          fi
+        done
+    volumes:
+      - config:/config
+      - metadata:/metadata
+
   audiobookshelf:
     image: ghcr.io/advplyr/audiobookshelf:2.36.0
     container_name: Audiobookshelf
     restart: unless-stopped
+    # Upstream runs as root and has no PUID/PGID, so this is set here instead.
+    # Without it, container root writes podcast episodes onto /mnt/downloads
+    # (ext4, mounted without nosuid) as uid 0 — which also makes the episodes
+    # awkward to manage from a shell.
+    user: "${PUID:-113}:${PGID:-113}"
+    depends_on:
+      init:
+        condition: service_completed_successfully
     environment:
       TZ: ${TZ:-Etc/UTC}
     volumes:
@@ -22,8 +57,8 @@ services:
       # "store metadata with the item" to work.
       - ${AUDIOBOOKS_DIR}:/audiobooks:ro
       # Read-write, unlike the audiobooks: ABS downloads podcast episodes
-      # into this directory itself. The image runs as root (upstream has no
-      # PUID/PGID), so downloaded episodes land root-owned.
+      # into this directory itself. Owned by the audiobookshelf group, setgid,
+      # so episodes stay manageable by anyone else in that group.
       - ${PODCASTS_DIR}:/podcasts
     networks:
       - default
