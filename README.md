@@ -5,13 +5,14 @@ Docker Compose projects for self-hosted services, each fronted by its own
 so the web UI is reachable only over the tailnet, on HTTPS, with nothing
 bound to a host port (bar the odd non-UI port like BitTorrent's).
 
-| Project        | Image                              | Reachable at                              |
-|----------------|------------------------------------|-------------------------------------------|
-| `autobangumi`  | `ghcr.io/estrellaxd/auto_bangumi`  | `<host>.<tailnet>.ts.net` + custom domain |
-| `jellyfin`     | `jellyfin/jellyfin`                | `<host>.<tailnet>.ts.net` + custom domain |
-| `qbittorrent`  | `lscr.io/linuxserver/qbittorrent`  | `<host>.<tailnet>.ts.net` + custom domain |
-| `monitoring`   | Grafana + Prometheus + Loki + Alloy | `<host>.<tailnet>.ts.net` + custom domain |
-| `backup`       | `restic/restic`                    | no web UI — self-scheduling restic backup |
+| Project          | Image                               | Reachable at                              |
+|------------------|-------------------------------------|-------------------------------------------|
+| `audiobookshelf` | `ghcr.io/advplyr/audiobookshelf`    | `<host>.<tailnet>.ts.net` + custom domain |
+| `autobangumi`    | `ghcr.io/estrellaxd/auto_bangumi`   | `<host>.<tailnet>.ts.net` + custom domain |
+| `jellyfin`       | `jellyfin/jellyfin`                 | `<host>.<tailnet>.ts.net` + custom domain |
+| `qbittorrent`    | `lscr.io/linuxserver/qbittorrent`   | `<host>.<tailnet>.ts.net` + custom domain |
+| `monitoring`     | Grafana + Prometheus + Loki + Alloy | `<host>.<tailnet>.ts.net` + custom domain |
+| `backup`         | `restic/restic`                     | no web UI — self-scheduling restic backup |
 
 Each project is a directory with a `compose.yaml`, a `Caddyfile`, and an
 `.env.example`. Copy `.env.example` to `.env` (gitignored) and fill it in —
@@ -162,9 +163,11 @@ skipped. `EXCLUDE_VOLUMES` drops the rest that rebuild themselves:
   little value after it. The glob deliberately does not match
   `monitoring_tailscale_state`, which is node identity worth keeping.
 
-That leaves 8 volumes and ~170 MiB, dominated by `jellyfin_config` — watch
-history and library metadata, the one thing here that is genuinely painful to
-rebuild. Small enough to run nightly without thinking about it.
+That leaves the volumes worth keeping — ~170 MiB when this was measured,
+dominated by `jellyfin_config` (watch history and library metadata) and now
+also carrying `audiobookshelf_config`, which holds listening progress. Those
+are the things here that are genuinely painful to rebuild, and the total is
+small enough to run nightly without thinking about it.
 
 `..` is mounted at `/config` so the `.env` files come along. They are gitignored
 and exist nowhere else, so without them a rebuild means reissuing every
@@ -183,9 +186,10 @@ the repository that contains the password.
 ### Consistency caveat
 
 Volumes are copied hot, with nothing stopped. For plain files that is fine.
-`jellyfin.db` is SQLite, so a snapshot taken mid-write may not open cleanly —
-which is why retention keeps 7 dailies rather than relying on the newest one.
-In practice the 03:30 window is when nothing is streaming.
+`jellyfin.db` and Audiobookshelf's `absdatabase.sqlite` are SQLite, so a
+snapshot taken mid-write may not open cleanly — which is why retention keeps 7
+dailies rather than relying on the newest one. In practice the 03:30 window is
+when nothing is streaming.
 
 If you want a guaranteed-consistent copy, `backup/systemd/docker-backup.service`
 carries commented-out `ExecStartPre`/`ExecStartPost` lines that stop and start
@@ -257,6 +261,45 @@ AWS_SECRET_ACCESS_KEY=<r2 secret access key>
 An R2 bucket plus an API token with **Object Read & Write** is all it needs. At
 ~320 MiB with deduplication, it costs essentially nothing, and the same
 `RESTIC_PASSWORD` encrypts both targets.
+
+## Audiobookshelf notes
+
+Two host paths, mounted with deliberately different permissions:
+
+- `AUDIOBOOKS_DIR` → `/audiobooks`, **read-only**. Audiobookshelf keeps cover
+  art and its scan results in the `metadata` volume, so it never needs to
+  write into the library. Drop the `:ro` if you want the web uploader, or
+  *Settings → Item Metadata Utils → "Store metadata with item"*, which moves
+  those files out of `/metadata/items` and into the library folders.
+- `PODCASTS_DIR` → `/podcasts`, **read-write**. This one has to be writable:
+  Audiobookshelf downloads episodes into it itself. The upstream image runs as
+  root and has no `PUID`/`PGID`, so those episodes land root-owned — unlike
+  qBittorrent's downloads, which are written as `PUID:PGID`.
+
+Add both as library folders (`/audiobooks`, `/podcasts`) in the first-run
+wizard, as separate libraries — Audiobookshelf's podcast and book libraries
+behave differently.
+
+Two Docker-managed volumes, and the split matters for restores:
+
+- `config` — the SQLite database: users, libraries, and **listening
+  progress**. The one thing here that genuinely cannot be recreated.
+- `metadata` — cover art, cached transcodes, and Audiobookshelf's own internal
+  backups. Rebuildable, but a rescan re-matches everything from scratch, so
+  it's left in the restic backup. If it ever grows past what you want to
+  snapshot nightly, add `audiobookshelf_metadata` to `EXCLUDE_VOLUMES`.
+
+No GPU block, unlike Jellyfin: the image ships `ffmpeg` and audio transcoding
+is cheap on CPU.
+
+Nothing extra is needed in the Caddyfile — Caddy passes Audiobookshelf's
+socket.io connection through as a normal WebSocket upgrade, and puts no limit
+on request bodies, so large uploads work if you make the library writable.
+
+**On a phone**, the mobile apps reach `${CUSTOM_DOMAIN}` only while the
+Tailscale app is connected — the name resolves through MagicDNS and the
+address is tailnet-only. Downloading books to the device for offline playback
+is the way around that, not a public listener.
 
 ## Jellyfin notes
 
