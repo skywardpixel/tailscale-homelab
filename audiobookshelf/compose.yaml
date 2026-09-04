@@ -1,0 +1,79 @@
+name: audiobookshelf
+
+# Audiobook + podcast server. Same front as every other project here: the app
+# with no published port, a caddy tsnet sidecar serving it over the tailnet,
+# and a dns-sync one-shot for the CNAME.
+
+services:
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:2.36.0
+    container_name: Audiobookshelf
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      # SQLite database, users, library definitions, sessions. The one volume
+      # that genuinely cannot be recreated.
+      - config:/config
+      # Cover art, cached transcodes, ABS's own internal backups.
+      - metadata:/metadata
+      # Read-only: ABS keeps its metadata in the volume above, so it never
+      # needs to write here. Drop the `:ro` if you want the web uploader or
+      # "store metadata with the item" to work.
+      - ${AUDIOBOOKS_DIR}:/audiobooks:ro
+      # Read-write, unlike the audiobooks: ABS downloads podcast episodes
+      # into this directory itself. The image runs as root (upstream has no
+      # PUID/PGID), so downloaded episodes land root-owned.
+      - ${PODCASTS_DIR}:/podcasts
+    networks:
+      - default
+    # No published port: reached only through the caddy service below, over
+    # the tailnet.
+    healthcheck:
+      # 127.0.0.1 rather than localhost — same IPv6-first trap as AutoBangumi.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  caddy:
+    build:
+      context: ../_caddy-tailscale
+    image: services/caddy-tailscale:local
+    container_name: Audiobookshelf_caddy
+    restart: unless-stopped
+    depends_on:
+      - audiobookshelf
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - tailscale_state:/var/lib/tailscale-caddy
+
+  # One-shot: keeps the DNS-only CNAME ${CUSTOM_DOMAIN} -> the node's MagicDNS
+  # name in Cloudflare. Runs to completion and exits on every `up`.
+  dns-sync:
+    build:
+      context: ../_dns-sync
+    image: services/dns-sync:local
+    container_name: Audiobookshelf_dns_sync
+    restart: "no"
+    environment:
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+
+volumes:
+  config:
+  metadata:
+  caddy_data:
+  caddy_config:
+  tailscale_state:
