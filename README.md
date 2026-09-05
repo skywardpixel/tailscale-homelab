@@ -43,11 +43,15 @@ sidecar that:
 
 A second shared build, `_dns-sync/`, is wired into each project as a one-shot
 `dns-sync` service. On every `up` it ensures Cloudflare holds a **DNS-only
-`CNAME` `${CUSTOM_DOMAIN}` → `${TS_HOSTNAME}.${TAILNET_NAME}.ts.net`**, so the
-custom domain routes to this node over the tailnet without anyone pasting an
-IP. Pointing at the MagicDNS name (not an `A` record) means it never needs
-updating when the node's Tailscale IP changes. It's idempotent — only writes
-when the record is missing or wrong — and exits.
+`A` record `${CUSTOM_DOMAIN}` → `${TS_IPV4}`**. Set `TS_IPV4` in each project's
+`.env` to that service's Caddy node address from the Tailscale admin console,
+not the Docker host's address. Tailscale IPs remain stable while node identity
+is preserved in `tailscale_state`; update `TS_IPV4` if the node is replaced.
+
+A records avoid client-specific NXDOMAIN failures when public CNAMEs point
+into private MagicDNS (`.ts.net`). The sync converts a single existing CNAME
+in place, preserves unrelated records, and exits without writes when already
+correct. Conflicting address records require manual review.
 
 ### Prerequisites
 
@@ -60,21 +64,28 @@ when the record is missing or wrong — and exits.
   zone. Used for both the ACME DNS-01 challenge and the `dns-sync` service.
 
 The custom-domain DNS record is created and kept current by the `dns-sync`
-service — no manual record needed. It still only resolves for devices on the
-tailnet (MagicDNS), which is the point.
+service — no manual record needed. The name resolves publicly, but the
+service remains reachable only through the tailnet. Resolvers with DNS
+rebinding protection may need an exception for this domain.
 
 ## Bring up a project
 
 ```sh
 cd <project>
 cp .env.example .env      # then edit .env
-docker compose up -d              # also runs dns-sync once (creates the CNAME)
+docker compose up -d              # also runs dns-sync once (creates the A record)
 docker compose logs -f caddy      # watch the tailnet join + cert issuance
 ```
 
 `dns-sync` runs as part of `up` and exits; check it with
 `docker compose logs dns-sync`, or re-run it on its own with
 `docker compose run --rm dns-sync`.
+
+To migrate an existing installation, set `TS_IPV4` for each project, then run
+`docker compose build dns-sync` and `docker compose run --rm dns-sync` in that
+project. This updates the existing CNAME to an A record without restarting
+Caddy. Allow cached NXDOMAIN responses to expire or flush the affected
+client's DNS cache before retesting.
 
 Restart / tear down:
 
@@ -325,8 +336,7 @@ on request bodies, so large uploads work if you make the library writable.
 official app is Android-only. On iOS the usable clients are third-party:
 SoundLeaf (offline downloads free in its base tier) and Plappa (downloads
 behind a one-time purchase). Whichever you use, it reaches `${CUSTOM_DOMAIN}`
-only while the Tailscale app is connected, since the name resolves through
-MagicDNS and the address is tailnet-only. Downloading books to the device for
+only while the Tailscale app is connected, since the address is tailnet-only. Downloading books to the device for
 offline playback is the way around that, not a public listener.
 
 ## Samba shares

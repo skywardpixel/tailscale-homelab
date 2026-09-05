@@ -2,7 +2,7 @@ name: monitoring
 
 # Observability for the whole host + all Docker projects. Same front as every
 # other project here: an app (Grafana) with no published port, a caddy tsnet
-# sidecar serving it over the tailnet, and a dns-sync one-shot for the CNAME.
+# sidecar serving it over the tailnet, and a dns-sync one-shot for the A record.
 #
 # Collection: Alloy runs the host (unix) exporter and ships it, cAdvisor
 # (per-container) and nvidia_gpu_exporter metrics to Prometheus, and every
@@ -159,8 +159,8 @@ services:
       - caddy_config:/config
       - tailscale_state:/var/lib/tailscale-caddy
 
-  # One-shot: keeps the DNS-only CNAME ${CUSTOM_DOMAIN} -> the node's MagicDNS
-  # name in Cloudflare. Runs to completion and exits on every `up`.
+  # One-shot: keeps the DNS-only A ${CUSTOM_DOMAIN} -> ${TS_IPV4}
+  # in Cloudflare. Runs to completion and exits on every `up`.
   dns-sync:
     build:
       context: ../_dns-sync
@@ -168,8 +168,7 @@ services:
     container_name: Monitoring_dns_sync
     restart: "no"
     environment:
-      TS_HOSTNAME: ${TS_HOSTNAME}
-      TAILNET_NAME: ${TAILNET_NAME}
+      TS_IPV4: ${TS_IPV4:?set the Caddy node Tailscale IPv4 in .env}
       CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
       CF_API_TOKEN: ${CF_API_TOKEN}
 
