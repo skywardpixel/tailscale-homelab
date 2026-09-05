@@ -17,7 +17,7 @@
 }
 
 # Custom private domain: reachable only from the tailnet. Needs a DNS-only
-# Cloudflare CNAME to this node's MagicDNS name (dns-sync maintains it).
+# Cloudflare A record to this node's Tailscale IPv4 (dns-sync maintains it).
 {$CUSTOM_DOMAIN} {
 	bind tailscale/{$TS_HOSTNAME}
 	tls {

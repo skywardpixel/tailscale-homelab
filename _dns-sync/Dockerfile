@@ -2,7 +2,7 @@
 # service (each does `build: {context: ../_dns-sync}`).
 #
 # Ensures ${CUSTOM_DOMAIN} resolves to this node over the tailnet by keeping a
-# DNS-only CNAME to ${TS_HOSTNAME}.${TAILNET_NAME}.ts.net in Cloudflare. Runs to
+# DNS-only A record to ${TS_IPV4} in Cloudflare. Runs to
 # completion and exits; safe to re-run on every `docker compose up`.
 FROM alpine:3.24
 
