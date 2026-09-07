@@ -2,7 +2,7 @@
 # Standard library only, so there is nothing to install — the image is the
 # upstream Python base plus one file. Built by monitoring/compose.yaml and
 # tagged services/media-exporter:local. Renovate watches this pinned tag.
-FROM python:3.13-alpine
+FROM python:3.14-alpine
 
 ENV PYTHONUNBUFFERED=1
 
