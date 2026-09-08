@@ -341,6 +341,22 @@ offline playback is the way around that, not a public listener.
 
 ## Jellyfin notes
 
+### Jellyfin 12 upgrade (2026-09-08)
+
+The image is pinned to `jellyfin/jellyfin:12.0` (server version `12.0.0`).
+Before upgrading from 10.11.11, Jellyfin was stopped and its entire
+`jellyfin_config` volume was saved in restic snapshot `b453efe5`, tagged
+`jellyfin-pre-12.0`. Restore that snapshot's
+`/volumes/jellyfin_config/_data` using the restore procedure above if a
+rollback is needed; changing the image back alone cannot undo migrations.
+
+Old plugin binaries are preserved inside the config volume at
+`/config/plugins-held-pre-12`. Compatible builds were installed for Intro
+Skipper (12.0.2.0), Jellyfin Enhanced (12.5.0.0, the Jellyfin 12 build), and
+TheTVDB (23.0.0.0). Their existing configuration files were retained.
+
+### Storage and GPU
+
 `MEDIA_DIR` (host path) is mounted read-only at `/media`; point libraries at
 `/media/<subfolder>` in the first-run wizard. `config` and `cache` are
 Docker-managed volumes.
