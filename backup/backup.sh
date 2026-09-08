@@ -4,7 +4,7 @@
 #
 # Deliberately plain restic: the repository format is exactly what the `restic`
 # binary produces, so a restore never needs Docker, this image, or this script.
-# See the "Restoring" section of the repo README.
+# See the "Restoring" section of backup/README.md.
 set -eu
 
 RETENTION_DAILY="${RETENTION_DAILY:-7}"
