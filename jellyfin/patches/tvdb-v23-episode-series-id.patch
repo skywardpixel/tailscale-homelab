@@ -1,0 +1,23 @@
+diff --git a/Jellyfin.Plugin.Tvdb/Providers/TvdbEpisodeProvider.cs b/Jellyfin.Plugin.Tvdb/Providers/TvdbEpisodeProvider.cs
+index 43e4966..2bca537 100644
+--- a/Jellyfin.Plugin.Tvdb/Providers/TvdbEpisodeProvider.cs
++++ b/Jellyfin.Plugin.Tvdb/Providers/TvdbEpisodeProvider.cs
+@@ -180,7 +180,8 @@ namespace Jellyfin.Plugin.Tvdb.Providers
+             {
+                 if (string.Equals(episodeTvdbId, "0", StringComparison.OrdinalIgnoreCase) || ignoreTvdbIdField || searchInfo.IsAutomated)
+                 {
+-                    if (searchInfo.GetTvdbId() == 0)
++                    searchInfo.SeriesProviderIds.TryGetValue(MetadataProvider.Tvdb.ToString(), out var seriesTvdbIdString);
++                    if (string.IsNullOrEmpty(seriesTvdbIdString))
+                     {
+                         _logger.LogWarning(
+                             "Episode S{Season:00}E{Episode:00} not checked as series ID is 0 for {Name}",
+@@ -199,7 +200,7 @@ namespace Jellyfin.Plugin.Tvdb.Providers
+                             "Episode S{Season:00}E{Episode:00} not found for series {SeriesTvdbId}:{Name}",
+                             searchInfo.ParentIndexNumber,
+                             searchInfo.IndexNumber,
+-                            searchInfo.GetTvdbId(),
++                            seriesTvdbIdString,
+                             searchInfo.Name);
+                         return result;
+                     }
