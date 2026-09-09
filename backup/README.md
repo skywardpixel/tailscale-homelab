@@ -43,6 +43,11 @@ skipped. `EXCLUDE_VOLUMES` drops the rest that rebuild themselves:
   little value after it. The glob deliberately does not match
   `monitoring_tailscale_state`, which is node identity worth keeping.
 
+Hermes's `hermes_data` and `hermes_tailscale_state` volumes are included too.
+The data volume contains credentials, conversations, memory, skills, scheduled
+jobs, and workspace files. Stop the Hermes service for a consistent snapshot;
+the normal schedule copies its state live, with the consistency caveat below.
+
 That leaves the volumes worth keeping — ~170 MiB when this was measured,
 dominated by `jellyfin_config` (watch history and library metadata) and now
 also carrying `audiobookshelf_config`, which holds listening progress. Those

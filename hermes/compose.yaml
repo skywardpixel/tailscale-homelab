@@ -1,0 +1,79 @@
+name: hermes
+
+services:
+  hermes:
+    image: nousresearch/hermes-agent:v2026.9.7
+    container_name: Hermes
+    restart: unless-stopped
+    command: [gateway, run]
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      # Keep a gateway channel active even when no messaging bot is configured.
+      # Dashboard and gateway share this container; API stays on loopback.
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: 127.0.0.1
+      API_SERVER_KEY: ${HERMES_API_KEY:?set a random gateway API key in .env}
+      HERMES_DASHBOARD: "1"
+      HERMES_DASHBOARD_HOST: 0.0.0.0
+      HERMES_DASHBOARD_PORT: "9119"
+      HERMES_DASHBOARD_BASIC_AUTH_USERNAME: ${HERMES_USERNAME:-admin}
+      HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: ${HERMES_PASSWORD:?set a dashboard password in .env}
+      HERMES_DASHBOARD_BASIC_AUTH_SECRET: ${HERMES_SESSION_SECRET:?set a stable random session secret in .env}
+    volumes:
+      - data:/opt/data
+    # s6 initializes the volume as root, then runs Hermes as its runtime user.
+    # Keep the image entrypoint; do not add init: true or user: here.
+    # No host ports, host directories, Docker socket, or shared media networks.
+    mem_limit: 4g
+    cpus: 2.0
+
+  caddy:
+    build:
+      context: ../_caddy-tailscale
+    image: services/caddy-tailscale:local
+    container_name: Hermes_caddy
+    restart: unless-stopped
+    networks:
+      default:
+        ipv4_address: 172.29.91.3
+    depends_on:
+      - hermes
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - tailscale_state:/var/lib/tailscale-caddy
+
+  # One-shot: keeps the DNS-only A ${CUSTOM_DOMAIN} -> ${TS_IPV4}
+  # in Cloudflare. Runs to completion and exits on every `up`.
+  dns-sync:
+    build:
+      context: ../_dns-sync
+    image: services/dns-sync:local
+    container_name: Hermes_dns_sync
+    restart: "no"
+    environment:
+      TS_IPV4: ${TS_IPV4:-}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+
+# A fixed proxy address lets Hermes trust only Caddy's forwarded headers.
+# If this subnet conflicts with your host/VPN, change it, Caddy's address,
+# and dashboard.trusted_proxies together (see README).
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.29.91.0/24
+
+volumes:
+  data:
+  caddy_data:
+  caddy_config:
+  tailscale_state:
