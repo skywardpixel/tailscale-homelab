@@ -40,7 +40,7 @@ After first-run setup, in the Jellyfin web UI:
 See [monitoring](../monitoring/README.md#media-pipeline-metrics) for playback
 metrics and [backup and restore](../backup/README.md#restoring) for volume recovery.
 
-## Anime metadata and TVDB v23 fix
+## Anime metadata and TheTVDB
 
 The Anime library uses TheTVDB as its sole online metadata and image provider
 for series, seasons, and episodes. Both Anime and TV Shows use Simplified Chinese
@@ -60,33 +60,14 @@ order includes the movie before season 3, so it does not match the release
 group's continuous TV-episode numbering. The rename map and prior user state
 are saved in `/config/backups/tvdb-v23-20260909/`.
 
-On 2026-09-09, TheTVDB 23.0.0.0 needed a local fix on Jellyfin 12.0: episodes
-without a TVDB episode ID were skipped even when their series had a valid ID.
-The log misleadingly reported `not checked as series ID is 0`.
-[Upstream issue #266](https://github.com/jellyfin/jellyfin-plugin-tvdb/issues/266)
-and [fix #267](https://github.com/jellyfin/jellyfin-plugin-tvdb/pull/267) describe it.
+Use the official [TheTVDB v24 release](https://github.com/jellyfin/jellyfin-plugin-tvdb/releases/tag/v24)
+or later. Version 24 includes [fix #267](https://github.com/jellyfin/jellyfin-plugin-tvdb/pull/267),
+which checks the series TVDB ID when an episode ID is missing or zero. This
+resolves [issue #266](https://github.com/jellyfin/jellyfin-plugin-tvdb/issues/266),
+where v23 skipped episodes despite a valid series ID and logged
+`not checked as series ID is 0`.
 
-The installed DLL was built from official tag `v23`, commit
-`511add6a925675e07206c8090425140cc5be3a2c`, with
-[this patch](patches/tvdb-v23-episode-series-id.patch). It changes the guard to
-read `SeriesProviderIds` and corrects the series ID in the failure log.
-The release build resolved Jellyfin packages to `12.0.0` and Tvdb.Sdk to `4.7.10`.
-The build used the official .NET 10 SDK image with digest
-`sha256:4ea6fe75dd36706bb6d8c3c293d4c4315840f5d76ea28ac97def77e3ec487fa5`.
-
-Installed file: `/config/plugins/TheTVDB_23.0.0.0/Jellyfin.Plugin.Tvdb.dll`.
-SHA-256: `99ec9a0e536ed16a790e2dada9a1c0ac3a215413033f84d730030971170f1705`.
-The original DLL, plugin manifest, and stopped-server database backup are in
-`/config/backups/tvdb-v23-20260909/`. To roll back the plugin, stop Jellyfin,
-restore the original DLL to its plugin directory, then start Jellyfin.
-The library settings backup is `options.xml.before-tvdb-only-20260909` beside
-`options.xml`.
-
-Validation: the same Re:Zero S04E16 refresh failed before the patch and fetched
-TVDB episode `11714318` (title, synopsis, air date, and artwork) afterward.
-A full Anime refresh completed for 12 series, 12 seasons, and 199 episodes;
-all 199 episodes have TVDB IDs after correcting the three series' episode orders.
-
-Plugin auto-updates remain enabled. Replace this local build with an official
-release containing #267 when available; reinstalling unpatched v23 restores
-the bug.
+The local v23 DLL patch and custom build are no longer needed. Plugin
+auto-updates remain enabled; use the official release instead of restoring
+the patched v23 build. The historical library settings backup remains at
+`options.xml.before-tvdb-only-20260909` beside `options.xml`.
