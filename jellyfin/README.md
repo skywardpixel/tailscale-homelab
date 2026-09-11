@@ -43,9 +43,14 @@ metrics and [backup and restore](../backup/README.md#restoring) for volume recov
 ## Anime metadata and TVDB v23 fix
 
 The Anime library uses TheTVDB as its sole online metadata and image provider
-for series, seasons, and episodes. Its metadata language is Japanese (`ja`,
-country `JP`); embedded images and screen grabs remain episode-image fallbacks.
+for series, seasons, and episodes. Both Anime and TV Shows use Simplified Chinese
+metadata (`zh-cn`, country `CN`), matching the server default; embedded images
+and screen grabs remain episode-image fallbacks for Anime.
 These settings live in the config volume at `/config/root/default/Anime/options.xml`.
+TV Shows settings live at `/config/root/default/TV Shows/options.xml`.
+Existing text metadata was refreshed on 2026-09-11. The prior library settings
+and full metadata for 157 items are saved in
+`/config/backups/chinese-metadata-20260911/`; existing artwork was preserved.
 Oshi no Ko and Frieren use `absolute` episode display order because their files
 use continuous numbering under `Season 1`. Re:Zero uses aired order with files
 such as `Season 4/... S04E16.mp4`. SPY×FAMILY also uses aired order: its 12 files
