@@ -150,7 +150,7 @@ app may have migrated its own database/config in the volume on first start
 the release notes before a major bump; snapshot the `config` volume first if
 it's one you can't recreate.
 
-## Backups and host setup
+## Backups
 
 See [backup and restore](backup/README.md) for volume coverage, scheduling,
 consistency requirements, and recovery instructions.
