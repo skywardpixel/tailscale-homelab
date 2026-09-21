@@ -91,7 +91,7 @@ services:
       - /dev/disk:/dev/disk:ro
 
   nvidia-gpu-exporter:
-    image: utkuozdemir/nvidia_gpu_exporter:1.14.0
+    image: utkuozdemir/nvidia_gpu_exporter:1.15.1
     container_name: nvidia_gpu_exporter
     restart: unless-stopped
     environment:
