@@ -31,24 +31,14 @@ The Python script reads `.env` as literal `KEY=value` lines; use unquoted
 values for hostnames and the SSH target. Update `BASTION_SSH_TARGET` if the
 VM's DHCP address changes.
 
-## Owner aliases and future users
+## Login users and future users
 
 The browser certificate flow uses the login email's prefix as its Unix
-username. Create matching VM accounts. Two identities belonging to the
-same owner can share a shell by running this **inside the VM**:
-
-```sh
-sudo bash map-owner-login.sh OWNER_USER ALIAS_USER
-```
-
-Both accounts must already exist. The script installs a forced SSH command
-for the alias and a narrow sudo rule to open the owner's login shell.
-Both identities then share the owner's home, SSH keys, and privileges,
-including the owner's existing sudo access. SSH still records the initial
-login name. Reconnect existing sessions to use the mapping. The alias
-supports interactive sessions only; SSH exec/subsystem requests and SSH
-forwarding are disabled. Normal owner SSH administration remains available.
-The script restricts SSH logins to the two supplied accounts.
+username. Create a matching VM account for each allowed email; each account
+keeps its own home directory and destination SSH key. To restrict SSH logins
+to those accounts, add a drop-in such as
+`/etc/ssh/sshd_config.d/02-owner-logins.conf` containing
+`AllowUsers OWNER_USER OTHER_USER`.
 
 Do not add another person by simply expanding this VM's Cloudflare allowlist
 or Unix user list. All traffic from this VM uses one Tailscale node identity;
