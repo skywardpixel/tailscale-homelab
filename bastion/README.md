@@ -78,22 +78,6 @@ to overwrite an existing bastion or disk directory. A failed provisioning
 attempt may leave that directory behind; inspect it before retrying. The
 download is verified against Debian's SHA512 manifest fetched over HTTPS.
 
-If a VM created with the original serial-console configuration stalls at
-“Booting Debian GNU/Linux”, it may be hitting
-[Debian GRUB bug #1111240](https://bugs.debian.org/1111240).
-The current creation script uses a virtio console to avoid that issue.
-For an existing VM stuck at the bootloader, run:
-
-```sh
-sudo bash bastion/fix-console.sh
-sudo virsh --connect qemu:///system net-dhcp-leases default
-```
-
-The repair backs up the VM definition, replaces the serial console with a
-virtio console, and power-cycles the VM without modifying its disk. Do not
-run it on a guest doing useful work. Early boot messages may not appear on
-the virtio console; check for a DHCP lease, then connect by SSH.
-
 ## Join the tailnet
 
 Inside the VM, install Tailscale using its official Debian 13 repository:

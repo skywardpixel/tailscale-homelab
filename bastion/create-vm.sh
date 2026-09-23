@@ -76,6 +76,7 @@ PY
 printf 'instance-id: bastion-01\nlocal-hostname: bastion\n' > "$build_dir/meta-data"
 cloud-localds "$vm_dir/seed.iso" "$build_dir/user-data" "$build_dir/meta-data"
 chmod 0600 "$vm_dir/seed.iso"
+# Virtio console avoids the Debian 13 serial-console boot failure (Debian #1111240).
 virt-install --connect qemu:///system --name bastion \
   --memory 1024 --vcpus 1 --osinfo debian13 --import \
   --disk "path=$vm_dir/disk.qcow2,format=qcow2,bus=virtio" \
