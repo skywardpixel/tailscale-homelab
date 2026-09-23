@@ -13,3 +13,7 @@ compose.override.yml
 
 # Python bytecode from local linting/compiling
 __pycache__/
+
+# Bastion deployment identities and local operator notes.
+/bastion/access-policy.local.json
+/bastion/README.local.md
