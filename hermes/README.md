@@ -51,7 +51,8 @@ docker compose run --rm -e HERMES_DASHBOARD=0 hermes config set dashboard.truste
 Here `local` means commands execute inside the Hermes container. The workspace
 is a dedicated directory within the persistent data volume. Agent commands
 can also access Hermes's state and credentials; this is not a separate sandbox
-per task. The container has no host filesystem or Docker socket mounts.
+per task. The container has no Docker socket mount, and its only host mount is the
+read-only `skills/` directory (see [Repo-managed skills](#repo-managed-skills)).
 
 Start Hermes and its proxy first:
 
@@ -101,6 +102,34 @@ Upgrades follow the repository's pinned-image workflow. Change the image tag,
 back up state, then run `docker compose pull hermes` and
 `docker compose up -d hermes`. Update the container image rather than running
 `hermes update` inside it.
+
+## Repo-managed skills
+
+`skills/` is mounted read-only at `/opt/homelab-skills` and loaded through
+Hermes's `skills.external_dirs`. Edits made here, or pulled with git, take
+effect without copying. The agent cannot modify these skills. Skills it
+creates itself still go to `/opt/data/skills` in the volume. Enable this once:
+
+```sh
+docker compose exec hermes hermes config set skills.external_dirs '["/opt/homelab-skills"]'
+docker compose up -d hermes
+```
+
+### Fabric
+
+`skills/fabric/` lets Hermes run [Fabric](../fabric/README.md) patterns over
+the tailnet. Hermes reaches Fabric's custom domain through the Docker host's
+Tailscale connection. Add the URL and key to `/opt/data/.env`, using values
+from `../fabric/.env`, then restart Hermes:
+
+```sh
+FABRIC_URL=https://fabric.example.com
+FABRIC_API_KEY=<FABRIC_API_KEY>
+```
+
+The skill lists both variables under `required_environment_variables`, so
+Hermes passes them only to the commands that skill runs. They are stripped
+from other terminal commands.
 
 ## Backup and restore
 

@@ -21,9 +21,13 @@ services:
       HERMES_DASHBOARD_BASIC_AUTH_SECRET: ${HERMES_SESSION_SECRET:?set a stable random session secret in .env}
     volumes:
       - data:/opt/data
+      # Repo-managed skills, loaded via skills.external_dirs. Read-only, so
+      # edits come from git and the agent cannot rewrite them.
+      - ./skills:/opt/homelab-skills:ro
     # s6 initializes the volume as root, then runs Hermes as its runtime user.
     # Keep the image entrypoint; do not add init: true or user: here.
-    # No host ports, host directories, Docker socket, or shared media networks.
+    # No host ports, Docker socket, or shared media networks; the only host
+    # directory is the read-only skills mount above.
     mem_limit: 4g
     cpus: 2.0
 
