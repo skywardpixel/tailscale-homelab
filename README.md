@@ -11,6 +11,7 @@ bound to a host port (bar the odd non-UI port like BitTorrent's).
 | [autobangumi](autobangumi/README.md)    | `ghcr.io/estrellaxd/auto_bangumi`   | `<host>.<tailnet>.ts.net` + custom domain |
 | [jellyfin](jellyfin/README.md)       | `jellyfin/jellyfin`                 | `<host>.<tailnet>.ts.net` + custom domain |
 | [hermes](hermes/README.md)          | `nousresearch/hermes-agent`         | `<host>.<tailnet>.ts.net` + custom domain |
+| [fabric](fabric/README.md)          | `kayvan/fabric`                     | `<host>.<tailnet>.ts.net` + custom domain |
 | [qbittorrent](qbittorrent/README.md)    | `lscr.io/linuxserver/qbittorrent`   | `<host>.<tailnet>.ts.net` + custom domain |
 | [monitoring](monitoring/README.md)     | Grafana + Prometheus + Loki + Alloy | `<host>.<tailnet>.ts.net` + custom domain |
 | [backup](backup/README.md)         | `restic/restic`                     | no web UI — self-scheduling restic backup |

@@ -1,0 +1,75 @@
+name: fabric
+
+# Fabric (danielmiessler/fabric) in REST server mode. Same front as every
+# other project here: the app with no published port, a caddy tsnet sidecar
+# serving it over the tailnet, and a dns-sync one-shot for the A record.
+#
+# The server spends money on whichever LLM provider is configured, so it also
+# requires an API key (X-API-Key header) on top of being tailnet-only.
+
+services:
+  fabric:
+    image: kayvan/fabric:v1.4.480
+    container_name: Fabric
+    restart: unless-stopped
+    # The image's entrypoint is `fabric`. Bind all interfaces inside the
+    # container so Caddy can reach it over the compose network.
+    command: [--serve, --address, ":8080", --api-key, "${FABRIC_API_KEY:?set a random API key in .env}"]
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      # Only read by the healthcheck below.
+      FABRIC_API_KEY: ${FABRIC_API_KEY}
+    volumes:
+      # Provider credentials (.env), default model, downloaded patterns,
+      # custom patterns, contexts and sessions.
+      - config:/home/appuser/.config/fabric
+    # No published port: reached only through the caddy service below, over
+    # the tailnet.
+    healthcheck:
+      # Every route requires the key, so an unauthenticated probe would 401.
+      test: ["CMD-SHELL", "wget -qO /dev/null --header \"X-API-Key: $$FABRIC_API_KEY\" http://127.0.0.1:8080/patterns/names"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 1g
+    cpus: 1.0
+
+  caddy:
+    build:
+      context: ../_caddy-tailscale
+    image: services/caddy-tailscale:local
+    container_name: Fabric_caddy
+    restart: unless-stopped
+    depends_on:
+      - fabric
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TAILNET_NAME: ${TAILNET_NAME}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - tailscale_state:/var/lib/tailscale-caddy
+
+  # One-shot: keeps the DNS-only A ${CUSTOM_DOMAIN} -> ${TS_IPV4}
+  # in Cloudflare. Runs to completion and exits on every `up`.
+  dns-sync:
+    build:
+      context: ../_dns-sync
+    image: services/dns-sync:local
+    container_name: Fabric_dns_sync
+    restart: "no"
+    environment:
+      TS_IPV4: ${TS_IPV4:-}
+      CUSTOM_DOMAIN: ${CUSTOM_DOMAIN}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+
+volumes:
+  config:
+  caddy_data:
+  caddy_config:
+  tailscale_state:
