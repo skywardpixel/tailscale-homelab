@@ -115,6 +115,12 @@ docker compose exec hermes hermes config set skills.external_dirs '["/opt/homela
 docker compose up -d hermes
 ```
 
+The mount is attached to the `skills/` directory itself. Changes to files
+inside it show up immediately, but if git deletes and recreates the directory
+(for example, checking out a commit from before it existed, then switching
+back), the container keeps the deleted, empty copy. Run
+`docker compose up -d --force-recreate hermes` afterwards.
+
 ### Fabric
 
 `skills/fabric/` lets Hermes run [Fabric](../fabric/README.md) patterns over
