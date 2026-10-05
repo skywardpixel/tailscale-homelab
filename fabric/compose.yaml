@@ -9,7 +9,7 @@ name: fabric
 
 services:
   fabric:
-    image: kayvan/fabric:v1.4.480
+    image: kayvan/fabric:v1.4.496
     container_name: Fabric
     restart: unless-stopped
     # The image's entrypoint is `fabric`. Bind all interfaces inside the
