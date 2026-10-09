@@ -1,7 +1,7 @@
 # restic plus a small scheduler. The repository it writes is ordinary restic
 # format — nothing here is needed to read it back, which is the point: a
 # restore must not depend on Docker being healthy.
-FROM restic/restic:0.18.1
+FROM restic/restic:0.19.1
 
 # busybox crond, flock, nice and ionice all ship in the base image, so the
 # scheduler needs no extra packages.

@@ -10,7 +10,7 @@ name: monitoring
 
 services:
   grafana:
-    image: grafana/grafana:13.2.1
+    image: grafana/grafana:13.2.3
     container_name: Grafana
     restart: unless-stopped
     depends_on: [prometheus, loki]
@@ -29,7 +29,7 @@ services:
     # No published port: reached only through caddy, over the tailnet.
 
   prometheus:
-    image: prom/prometheus:v3.14.0
+    image: prom/prometheus:v3.15.0
     container_name: Prometheus
     restart: unless-stopped
     command:
@@ -43,7 +43,7 @@ services:
       - prometheus_data:/prometheus
 
   loki:
-    image: grafana/loki:3.7.7
+    image: grafana/loki:3.7.8
     container_name: Loki
     restart: unless-stopped
     command: -config.file=/etc/loki/loki-config.yaml
@@ -52,7 +52,7 @@ services:
       - loki_data:/loki
 
   alloy:
-    image: grafana/alloy:v1.19.2
+    image: grafana/alloy:v1.20.1
     container_name: Alloy
     restart: unless-stopped
     depends_on: [prometheus, loki]
@@ -73,7 +73,7 @@ services:
       - /:/rootfs:ro,rslave
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.55.1
+    image: ghcr.io/google/cadvisor:v0.60.6
     container_name: cAdvisor
     restart: unless-stopped
     command:
@@ -91,7 +91,7 @@ services:
       - /dev/disk:/dev/disk:ro
 
   nvidia-gpu-exporter:
-    image: utkuozdemir/nvidia_gpu_exporter:1.14.0
+    image: utkuozdemir/nvidia_gpu_exporter:1.15.1
     container_name: nvidia_gpu_exporter
     restart: unless-stopped
     environment:
@@ -106,7 +106,7 @@ services:
               capabilities: [gpu]
 
   smartctl-exporter:
-    image: prometheuscommunity/smartctl-exporter:v0.14.0
+    image: prometheuscommunity/smartctl-exporter:v0.15.0
     container_name: smartctl_exporter
     restart: unless-stopped
     privileged: true
