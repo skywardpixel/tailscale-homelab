@@ -10,7 +10,7 @@ name: monitoring
 
 services:
   grafana:
-    image: grafana/grafana:13.2.3
+    image: grafana/grafana:13.2.4
     container_name: Grafana
     restart: unless-stopped
     depends_on: [prometheus, loki]
@@ -29,7 +29,7 @@ services:
     # No published port: reached only through caddy, over the tailnet.
 
   prometheus:
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.1
     container_name: Prometheus
     restart: unless-stopped
     command:
@@ -43,7 +43,7 @@ services:
       - prometheus_data:/prometheus
 
   loki:
-    image: grafana/loki:3.7.8
+    image: grafana/loki:3.7.9
     container_name: Loki
     restart: unless-stopped
     command: -config.file=/etc/loki/loki-config.yaml
@@ -52,7 +52,7 @@ services:
       - loki_data:/loki
 
   alloy:
-    image: grafana/alloy:v1.20.1
+    image: grafana/alloy:v1.21.2
     container_name: Alloy
     restart: unless-stopped
     depends_on: [prometheus, loki]
