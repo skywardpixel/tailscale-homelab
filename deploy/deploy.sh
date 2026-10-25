@@ -6,8 +6,11 @@
 # A project is deployed when:
 #   - changed: a file under it changed, or under a shared build it references
 #     (`../_caddy-tailscale`, `../_dns-sync`, ...);
-#   - drifted: a container runs a different image than compose.yaml names, or
-#     is missing. This catches commits that were pulled but never deployed;
+#   - drifted: a container runs a different registry image than compose.yaml
+#     names, or is missing. This catches commits that were pulled but never
+#     deployed. Local builds are left to the two other rules: several projects
+#     share one :local tag, so a container built by another project's run
+#     shows up as an untagged image ID without being out of date;
 #   - rebuild day: once a week (REBUILD_WEEKDAY, or `deploy.sh --rebuild`)
 #     every project with a local build is rebuilt with --pull, so floating
 #     base images like caddy:2 pick up security fixes.
@@ -39,6 +42,11 @@ rebuild=false
 if [ "${1:-}" = "--rebuild" ] || [ "$(date +%u)" = "$REBUILD_WEEKDAY" ]; then
 	rebuild=true
 fi
+
+# Without the default provenance attestation, a build that is fully cached
+# gives the same image ID again, so `up --build` does not recreate every
+# Caddy sidecar on each deploy.
+export BUILDX_NO_DEFAULT_ATTESTATIONS=1
 
 log() { echo "[deploy] $*"; }
 
@@ -79,10 +87,11 @@ if [ "$old" != "$new" ]; then
 	log "fast-forwarded ${old:0:7}..${new:0:7}"
 fi
 
-# Images compose.yaml names that no container of the project runs.
+# Registry images compose.yaml names that no container of the project runs.
 drifted() { # project
 	(cd "$1" && comm -23 \
-		<(docker compose config --images | sort -u) \
+		<(docker compose config --format json |
+			jq -r '.services[] | select(.build == null) | .image' | sort -u) \
 		<(docker compose ps -a --format '{{.Image}}' | sort -u))
 }
 

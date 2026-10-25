@@ -18,8 +18,8 @@ without you; minor and major ones go live the morning after you merge the PR.
    this host and are skipped. The others are deployed when:
    - **changed**: a file under the project changed, or under a shared build it
      references (`_caddy-tailscale`, `_dns-sync`, `_media-exporter`);
-   - **drifted**: a container runs a different image than `compose.yaml`
-     names, or is missing. This catches commits that were pulled but never
+   - **drifted**: a container runs a different registry image than
+     `compose.yaml` names, or is missing. This catches commits that were pulled but never
      deployed, and a project you stopped by hand;
    - **rebuild day** (Sunday, `REBUILD_WEEKDAY`): every project with a local
      build. These start from tags that move (`caddy:2`), so without a rebuild
@@ -41,7 +41,7 @@ next run does not retry it: fix it by hand, or push a fix.
 ## Setup
 
 On the host, as the user that owns this checkout (must be in the `docker`
-group), from `deploy/`:
+group, and have `jq` installed), from `deploy/`:
 
 ```sh
 cp .env.example .env              # set NTFY_URL; see DEPLOY_REMOTE below
