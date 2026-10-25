@@ -21,9 +21,23 @@
       "versioning": "semver"
     },
     {
+      "description": "Hermes: releases moved from CalVer (v2026.9.24) to SemVer (v0.22.0). The old CalVer tags still exist and sort above every v0.x tag, so ignore them.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["nousresearch/hermes-agent"],
+      "allowedVersions": "!/^v20\\d{2}\\./"
+    },
+    {
       "description": "Group the caddy base image bumps into one PR",
       "matchFileNames": ["_caddy-tailscale/Dockerfile"],
       "groupName": "caddy base image"
+    },
+    {
+      "description": "Patch updates merge straight to main with no PR, once the release is 3 days old (time for a bad release to be pulled). There is no CI to wait for, hence ignoreTests. The host's deploy/ timer then rolls them out. Minor and major updates still open PRs.",
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "3 days",
+      "automerge": true,
+      "automergeType": "branch",
+      "ignoreTests": true
     }
   ]
 }
