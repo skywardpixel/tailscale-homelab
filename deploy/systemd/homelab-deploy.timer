@@ -1,0 +1,13 @@
+[Unit]
+Description=Deploy merged updates daily, after the nightly backup
+
+[Timer]
+# backup runs at 03:30 (BACKUP_SCHEDULE in backup/.env), so a snapshot from
+# before the upgrade exists. Move this if you move that.
+OnCalendar=*-*-* 05:00:00
+RandomizedDelaySec=10m
+# No Persistent=: after downtime, wait for the next 05:00 rather than deploy
+# at boot before backup's own catch-up has run.
+
+[Install]
+WantedBy=timers.target

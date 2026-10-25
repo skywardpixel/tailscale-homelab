@@ -10,7 +10,7 @@ name: Renovate
 
 on:
   schedule:
-    - cron: "0 16 * * 1" # Mondays ~08:00 America/Los_Angeles
+    - cron: "0 16 * * *" # daily ~08:00 America/Los_Angeles
   workflow_dispatch:
     inputs:
       logLevel:

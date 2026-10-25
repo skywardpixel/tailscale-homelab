@@ -124,23 +124,30 @@ file, drop the override in a `compose.override.yaml` (gitignored).
 
 [Renovate](https://docs.renovatebot.com/) watches the pinned tags —
 `compose.yaml` images and shared `Dockerfile`s — and opens one PR per update
-with a link to the changelog. Nothing updates on its own.
+with a link to the changelog. Patch updates are the exception: once a
+release is 3 days old, Renovate merges it straight to `main` without a PR.
+Minor and major updates wait for you to merge the PR.
+
+On the host, [deploy/](deploy/README.md) pulls `main` every morning after the
+backup and redeploys only the projects whose files changed, so a merged update
+(automatic or yours) goes live the next morning. It sends an ntfy notification
+with what it deployed, or with what failed to come up healthy.
 
 It runs **self-hosted** from `.github/workflows/renovate.yml` (a scheduled
 GitHub Action, no Mend app). One-time setup: create a fine-grained PAT scoped
 to this repo with **Contents / Pull requests / Issues / Workflows: Read and
 write**, add it as the `RENOVATE_TOKEN` Actions secret. The workflow runs
-Monday mornings, or on demand via *Actions → Renovate → Run workflow*.
+every morning, or on demand via *Actions → Renovate → Run workflow*.
 `renovate.json` holds the rules; a "Dependency Dashboard" issue tracks
 everything pending.
 
-To take an update:
+To take an update by hand (or on a host without the deploy timer):
 
 ```sh
 # merge the Renovate PR on GitHub, then on the host:
 git pull
 cd <project>
-docker compose pull                  # app images (skips the built ones)
+docker compose pull --ignore-buildable   # app images; without the flag the local builds fail the pull
 docker compose up -d --build         # --build picks up _caddy-tailscale / _dns-sync changes
 docker compose logs -f               # healthcheck green, WebUI loads, one real task works
 ```

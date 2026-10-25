@@ -1,0 +1,16 @@
+# User unit: runs as the repo owner, who must be in the docker group. From the
+# deploy directory:
+#   systemctl --user link "$PWD/systemd/homelab-deploy.service"
+#   systemctl --user enable --now "$PWD/systemd/homelab-deploy.timer"
+#   sudo loginctl enable-linger "$USER"   # run without a login session
+
+[Unit]
+Description=Pull main and redeploy changed compose projects
+Documentation=https://github.com/skywardpixel/tailscale-homelab
+
+[Service]
+Type=oneshot
+# %Y is the directory containing this unit's real source file, including when
+# linked into the unit search path. Passing it as $1 keeps spaces intact.
+ExecStart=/bin/sh -c 'exec "$1/../deploy.sh"' sh %Y
+TimeoutStartSec=30m
