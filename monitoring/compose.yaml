@@ -10,7 +10,7 @@ name: monitoring
 
 services:
   grafana:
-    image: grafana/grafana:13.2.4
+    image: grafana/grafana:13.3.0
     container_name: Grafana
     restart: unless-stopped
     depends_on: [prometheus, loki]
@@ -52,7 +52,7 @@ services:
       - loki_data:/loki
 
   alloy:
-    image: grafana/alloy:v1.21.2
+    image: grafana/alloy:v1.21.3
     container_name: Alloy
     restart: unless-stopped
     depends_on: [prometheus, loki]
@@ -91,7 +91,7 @@ services:
       - /dev/disk:/dev/disk:ro
 
   nvidia-gpu-exporter:
-    image: utkuozdemir/nvidia_gpu_exporter:1.15.1
+    image: utkuozdemir/nvidia_gpu_exporter:1.16.0
     container_name: nvidia_gpu_exporter
     restart: unless-stopped
     environment:
